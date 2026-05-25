@@ -11,7 +11,7 @@ import streamlit as st
 # --- ページの設定（タイトルやアイコン） ---
 st.set_page_config(page_title="minne市場リサーチツール", page_icon="🛍️", layout="wide")
 
-# 🎨 大味なデザインを引き締める魔法のカスタムCSS（修正済み）
+# 🎨 大味なデザインを引き締める魔法のカスタムCSS（完全に修正しました）
 st.markdown("""
     <style>
     /* 画面全体の文字サイズを少し小さくしてシャープに */
@@ -42,9 +42,10 @@ st.markdown("""
         margin-bottom: 2px !important;
     }
     </style>
-    """, unsafe_allow_html=True) # 👈 括弧の位置を正しく修正しました！
+    """, unsafe_allow_html=True)
 
 st.title("🛍️ minne市場リサーチツール")
+# 💡 ここにあった余計な unsafe_allow_html を削除して綺麗にしました
 st.markdown("<span style='color: gray; font-size: 13px;'>キーワード、またはminneの検索結果URLから売れ行きやライバル作品を爆速で一括解析します。</span>", unsafe-allow_html=True)
 st.write("---") # 区切り線を入れてスッキリ
 

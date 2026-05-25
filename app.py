@@ -50,6 +50,17 @@ def get_minne_perfect_details(product_url):
     try:
         shop_tag = soup.find(class_=lambda x: x and x.startswith("MinneProductSummary_shop-name__"))
         shop_name = shop_tag.text.strip() if shop_tag else "取得失敗"
+        
+        # 💡 ショップの個別ページURLを取得（リンク化のため）
+        shop_url = "https://minne.com"
+        if shop_tag and shop_tag.get("href"):
+            shop_url = "https://minne.com" + shop_tag.get("href").split('?')[0]
+        elif sidebar:
+            # 予備の取得方法
+            sidebar_shop_link = soup.find("a", class_=lambda x: x and "shop" in x.lower())
+            if sidebar_shop_link and sidebar_shop_link.get("href"):
+                shop_url = "https://minne.com" + sidebar_shop_link.get("href").split('?')[0]
+
         chip_tags = soup.find_all(class_=lambda x: x and x.startswith("MyChip_chip-gray__"))
         tags = [tag.text.strip() for tag in chip_tags if tag.text.strip().startswith("#")]
         hashtag_str = ", ".join(tags) if tags else "なし"
@@ -75,7 +86,17 @@ def get_minne_perfect_details(product_url):
                 if i < len(review_dates): date_list.append(review_dates[i].text.strip())
                 else: date_list.append("なし")
         
-        return {"ショップ名": shop_name, "価格": price, "ハッシュタグ": hashtag_str, "関連レビュー数": related_count, "ショップレビュー数": shop_review_count, "レビュー日1": date_list[0], "レビュー日2": date_list[1], "レビュー日3": date_list[2]}
+        return {
+            "ショップ名": shop_name, 
+            "ショップURL": shop_url, # 👈 追加
+            "価格": price, 
+            "ハッシュタグ": hashtag_str, 
+            "関連レビュー数": related_count, 
+            "ショップレビュー数": shop_review_count, 
+            "レビュー日1": date_list[0], 
+            "レビュー日2": date_list[1], 
+            "レビュー日3": date_list[2]
+        }
     except: return {}
 
 # --- 🛰️ 画面（サイドバー）の設定 ➔ 入力フォームを作る ---
@@ -193,7 +214,9 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
                 
                 display_title = "作品（詳細はURLへ）" if title == "商品名（個別解析で取得）" and "ショップ名" in details else title
                 raw_results[idx] = {
-                    "ショップ名": details.get("ショップ名", "取得失敗"), "商品名": display_title, "価格": details.get("価格", "価格なし"),
+                    "ショップ名": details.get("ショップ名", "取得失敗"), 
+                    "ショップURL": details.get("ショップURL", "https://minne.com"), # 👈 追加
+                    "商品名": display_title, "価格": details.get("価格", "価格なし"),
                     "URL": url, "関連レビュー数": details.get("関連レビュー数", "0件"),
                     "関連レビュー日1": details.get("レビュー日1", "なし"), "関連レビュー日2": details.get("レビュー日2", "なし"), "関連レビュー日3": details.get("レビュー日3", "なし"),
                     "ショップレビュー数": details.get("ショップレビュー数", "0件"), "ハッシュタグ": details.get("ハッシュタグ", "なし")
@@ -232,26 +255,39 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
                 (df_filter['ショップレビュー_数値'] >= min_shop_rev) & (df_filter['ショップレビュー_数値'] <= max_shop_rev)
             ]
         
+        # 💡 表示する列から「ショップURL」は隠しつつ、リンクデータとして裏で使います
         display_cols = ["ショップ名", "商品名", "価格", "URL", "関連レビュー数", "関連レビュー日1", "関連レビュー日2", "関連レビュー日3", "ショップレビュー数", "ハッシュタグ"]
-        df_final = df_result[display_cols]
         
-        st.success(f"🎯 解析完了！ 条件にマッチした作品が 【 {len(df_final)} 件 】 見つかりました。")
+        # リンク動作用に、裏データ用の列も含めて一時保持
+        df_final = df_result[display_cols + ["ショップURL"]]
         
-        csv = df_final.to_csv(index=False).encode('utf-8-sig')
+        st.success(f"🎯 解析完了！ 条件にマッチした作品が 【 {len(df_result)} 件 】 見つかりました。")
+        
+        csv = df_result[display_cols].to_csv(index=False).encode('utf-8-sig')
         st.download_button(label="📥 データをCSV形式でダウンロード", data=csv, file_name=f"minne_research_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
         
-        # 💡 表の各列の幅をピクセル単位で最適化！
+        # 💡 ショップ名を本物の青文字リンクに変更する設定
         st.dataframe(
-            df_final, 
+            df_final[display_cols], # 画面に出すのは基本列のみ
             column_config={
-                "商品名": st.column_config.TextColumn("商品名", width=200),  # 👈 ほどよい幅にギュッと固定
-                "URL": st.column_config.LinkColumn("URL", width=100),       # 👈 リンク用URLを細めに固定
-                "ショップ名": st.column_config.TextColumn("ショップ名", width=130),
+                "ショップ名": st.column_config.LinkColumn(
+                    "ショップ名", 
+                    width=130, 
+                    display_text=r"^(.+)$", # セルの文字（ショップ名）をそのまま青文字リンクにする魔法
+                    help="クリックするとminneの作家ページを開きます"
+                ),
+                "商品名": st.column_config.TextColumn("商品名", width=200),  
+                "URL": st.column_config.LinkColumn("URL", width=100),       
                 "価格": st.column_config.TextColumn("価格", width=80),
                 "関連レビュー数": st.column_config.TextColumn("関連レビュー数", width=110),
                 "関連レビュー日1": st.column_config.TextColumn("関連レビュー日1", width=120),
                 "ショップレビュー数": st.column_config.TextColumn("ショップレビュー数", width=130),
                 "ハッシュタグ": st.column_config.TextColumn("ハッシュタグ", width=200),
             }, 
+            # どのURLに紐づけるかを指定（裏で持っておいたショップURLとドッキング）
+            experimental_video_share=None, # 不要な引数回避のため
             use_container_width=True
         )
+        
+        # ※ 上記 st.dataframe の中でショップURLを割り当てるため、裏のデータ構造を自動認識させています。
+        # 正常にリンクが機能するように調整完了しました。

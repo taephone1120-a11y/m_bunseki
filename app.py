@@ -50,12 +50,6 @@ def get_minne_perfect_details(product_url):
     try:
         shop_tag = soup.find(class_=lambda x: x and x.startswith("MinneProductSummary_shop-name__"))
         shop_name = shop_tag.text.strip() if shop_tag else "取得失敗"
-        
-        # ショップの個別ページURLを取得
-        shop_url = "https://minne.com"
-        if shop_tag and shop_tag.get("href"):
-            shop_url = "https://minne.com" + shop_tag.get("href").split('?')[0]
-
         chip_tags = soup.find_all(class_=lambda x: x and x.startswith("MyChip_chip-gray__"))
         tags = [tag.text.strip() for tag in chip_tags if tag.text.strip().startswith("#")]
         hashtag_str = ", ".join(tags) if tags else "なし"
@@ -81,17 +75,7 @@ def get_minne_perfect_details(product_url):
                 if i < len(review_dates): date_list.append(review_dates[i].text.strip())
                 else: date_list.append("なし")
         
-        return {
-            "ショップ名": shop_name, 
-            "ショップURL": shop_url, 
-            "価格": price, 
-            "ハッシュタグ": hashtag_str, 
-            "関連レビュー数": related_count, 
-            "ショップレビュー数": shop_review_count, 
-            "レビュー日1": date_list[0], 
-            "レビュー日2": date_list[1], 
-            "レビュー日3": date_list[2]
-        }
+        return {"ショップ名": shop_name, "価格": price, "ハッシュタグ": hashtag_str, "関連レビュー数": related_count, "ショップレビュー数": shop_review_count, "レビュー日1": date_list[0], "レビュー日2": date_list[1], "レビュー日3": date_list[2]}
     except: return {}
 
 # --- 🛰️ 画面（サイドバー）の設定 ➔ 入力フォームを作る ---
@@ -209,9 +193,7 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
                 
                 display_title = "作品（詳細はURLへ）" if title == "商品名（個別解析で取得）" and "ショップ名" in details else title
                 raw_results[idx] = {
-                    "ショップ名": details.get("ショップ名", "取得失敗"), 
-                    "ショップ名URL": details.get("ショップURL", "https://minne.com"), # 💡 表の中で直接使う用の名前
-                    "商品名": display_title, "価格": details.get("価格", "価格なし"),
+                    "ショップ名": details.get("ショップ名", "取得失敗"), "商品名": display_title, "価格": details.get("価格", "価格なし"),
                     "URL": url, "関連レビュー数": details.get("関連レビュー数", "0件"),
                     "関連レビュー日1": details.get("レビュー日1", "なし"), "関連レビュー日2": details.get("レビュー日2", "なし"), "関連レビュー日3": details.get("レビュー日3", "なし"),
                     "ショップレビュー数": details.get("ショップレビュー数", "0件"), "ハッシュタグ": details.get("ハッシュタグ", "なし")
@@ -250,29 +232,21 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
                 (df_filter['ショップレビュー_数値'] >= min_shop_rev) & (df_filter['ショップレビュー_数値'] <= max_shop_rev)
             ]
         
-        # 画面の表示順をスッキリ整理
-        display_cols = ["ショップ名URL", "商品名", "価格", "URL", "関連レビュー数", "関連レビュー日1", "関連レビュー日2", "関連レビュー日3", "ショップレビュー数", "ハッシュタグ"]
+        display_cols = ["ショップ名", "商品名", "価格", "URL", "関連レビュー数", "関連レビュー日1", "関連レビュー日2", "関連レビュー日3", "ショップレビュー数", "ハッシュタグ"]
         df_final = df_result[display_cols]
         
         st.success(f"🎯 解析完了！ 条件にマッチした作品が 【 {len(df_final)} 件 】 見つかりました。")
         
-        # CSVはURLではなく、元の綺麗な「ショップ名」で保存されるように調整
-        df_csv = df_final.copy()
-        df_csv.rename(columns={"ショップ名URL": "ショップ名"}, inplace=True)
-        csv = df_csv.to_csv(index=False).encode('utf-8-sig')
+        csv = df_final.to_csv(index=False).encode('utf-8-sig')
         st.download_button(label="📥 データをCSV形式でダウンロード", data=csv, file_name=f"minne_research_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
         
-        # 💡 エラーの原因を完全に排除し、安全にショップ名をリンク化！
+        # 📊 商品名とURLの幅をスッキリ狭くした元の安全な表設定
         st.dataframe(
             df_final, 
             column_config={
-                "ショップ名URL": st.column_config.LinkColumn(
-                    "ショップ名",           # 👈 画面上の見出しは「ショップ名」になります
-                    width=130, 
-                    display_text=r"https://minne\.com/([^?]+)" # URLの中から作家IDを自動で抜き出して綺麗に表示
-                ),
-                "商品名": st.column_config.TextColumn("商品名", width=200),  
-                "URL": st.column_config.LinkColumn("URL", width=100),       
+                "商品名": st.column_config.TextColumn("商品名", width=200),  # ほどよい幅に固定
+                "URL": st.column_config.LinkColumn("URL", width=100),       # 細めに固定
+                "ショップ名": st.column_config.TextColumn("ショップ名", width=130),
                 "価格": st.column_config.TextColumn("価格", width=80),
                 "関連レビュー数": st.column_config.TextColumn("関連レビュー数", width=110),
                 "関連レビュー日1": st.column_config.TextColumn("関連レビュー日1", width=120),

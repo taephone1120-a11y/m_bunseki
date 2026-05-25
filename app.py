@@ -67,28 +67,31 @@ def get_minne_perfect_details(product_url):
 
 # --- 🛰️ 画面（サイドバー）の設定 ➔ 入力フォームを作る ---
 st.sidebar.header("🔍 検索・フィルター条件")
-target_input = st.sidebar.text_input("キーワード または 検索結果URL", value="")
+target_input = st.sidebar.text_input("キーワード または 検索結果URL", value="天然石 リング アメジスト")
 limit = st.sidebar.number_input("解析する件数上限", min_value=10, max_value=200, value=40, step=10)
 
 st.sidebar.subheader("価格帯フィルター")
 min_p = st.sidebar.number_input("最低価格 (円)", min_value=0, value=1000, step=100)
 max_p = st.sidebar.number_input("最高価格 (円)", min_value=0, value=6000, step=100)
 
+# 💡 実績フィルターの表示を見やすく整理
 st.sidebar.subheader("実績フィルター")
+
+st.sidebar.caption("📊 作品レビュー数")
 col1, col2 = st.sidebar.columns(2)
 with col1:
-    min_rev = st.number_input("作品レビュー最低", min_value=0, value=0)
+    min_rev = st.number_input("最低", min_value=0, value=0, key="min_rev")
 with col2:
-    max_rev = st.number_input("作品レビュー最高", min_value=0, value=9999)
+    max_rev = st.number_input("最高", min_value=0, value=9999, key="max_rev")
 
+st.sidebar.caption("🏪 ショップレビュー数")
 col3, col4 = st.sidebar.columns(2)
 with col3:
-    min_shop_rev = st.number_input("ショップレビュー最低", min_value=0, value=0)
+    min_shop_rev = st.number_input("最低", min_value=0, value=0, key="min_shop_rev")
 with col4:
-    max_shop_rev = st.number_input("ショップレビュー最高", min_value=0, value=99999)
+    max_shop_rev = st.number_input("最高", min_value=0, value=99999, key="max_shop_rev")
 
 st.sidebar.subheader("日付フィルター")
-# 💡 日付設定を有効にするかどうかのチェックボックス
 use_date_filter = st.sidebar.checkbox("対象とする関連レビューの日付を指定する", value=False)
 
 if use_date_filter:
@@ -104,7 +107,6 @@ else:
 
 # --- 🚀 実行ボタン ---
 if st.sidebar.button("リサーチを開始する", type="primary"):
-    # 日付指定ありの場合のチェック
     if use_date_filter:
         if date_range and len(date_range) == 2:
             start_date, end_date = date_range
@@ -205,18 +207,16 @@ if st.sidebar.button("リサーチを開始する", type="primary"):
             
         df_filter['関連レビュー日1_日付'] = df_filter['関連レビュー日1'].apply(clean_japanese_date)
         
-        # 💡【フィルター条件のロジック変更】
+        # フィルター条件のロジック
         if use_date_filter:
-            # 日付指定ありの場合：指定期間内、かつレビュー数が1件以上のもの（0件は自動除外）
             df_result = df_filter[
                 (df_filter['価格_数値'] >= min_p) & (df_filter['価格_数値'] <= max_p) &
                 (df_filter['関連レビュー_数値'] >= min_rev) & (df_filter['関連レビュー_数値'] <= max_rev) &
-                (df_filter['関連レビュー_数値'] > 0) & # 👈 レビュー0件を絶対に排除
+                (df_filter['関連レビュー_数値'] > 0) &
                 (df_filter['ショップレビュー_数値'] >= min_shop_rev) & (df_filter['ショップレビュー_数値'] <= max_shop_rev) &
                 (df_filter['関連レビュー日1_日付'] >= start_dt) & (df_filter['関連レビュー日1_日付'] <= end_dt)
             ]
         else:
-            # 日付指定なしの場合：日付に関係なくすべて、レビュー0件も含む
             df_result = df_filter[
                 (df_filter['価格_数値'] >= min_p) & (df_filter['価格_数値'] <= max_p) &
                 (df_filter['関連レビュー_数値'] >= min_rev) & (df_filter['関連レビュー_数値'] <= max_rev) &

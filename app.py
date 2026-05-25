@@ -11,8 +11,42 @@ import streamlit as st
 # --- ページの設定（タイトルやアイコン） ---
 st.set_page_config(page_title="minne市場リサーチツール", page_icon="🛍️", layout="wide")
 
+# 🎨 大味なデザインを引き締める魔法のカスタムCSS
+st.markdown("""
+    <style>
+    /* 画面全体の文字サイズを少し小さくしてシャープに */
+    html, body, [class*="css"] {
+        font-size: 14px !important;
+    }
+    /* タイトル周りの無駄な余白をカット */
+    .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 1rem !important;
+    }
+    h1 {
+        font-size: 24px !important;
+        font-weight: 700 !important;
+        margin-bottom: 5px !important;
+    }
+    /* サイドバーの入力項目間の隙間をギュッと詰める */
+    div[data-testid="stVerticalBlock"] > div {
+        padding-bottom: 4px !important;
+    }
+    /* 入力ボックスの高さを低くしてコンパクトに */
+    .stTextInput input, .stNumberInput input, .stDateInput input {
+        padding: 6px 10px !important;
+        font-size: 13px !important;
+    }
+    /* キャプション（見出し）を目立たせる */
+    .stMarkdown p {
+        margin-bottom: 2px !important;
+    }
+    </style>
+    """, unsafe-allow_html=True)
+
 st.title("🛍️ minne市場リサーチツール")
-st.write("キーワード、またはminneの検索結果URLを入力するだけで、売れ行きやライバル作品を爆速で一括解析します。")
+st.markdown("<span style='color: gray; font-size: 13px;'>キーワード、またはminneの検索結果URLから売れ行きやライバル作品を爆速で一括解析します。</span>", unsafe-allow_html=True)
+st.write("---") # 区切り線を入れてスッキリ
 
 # --- 詳細データ抽出関数 ---
 def get_minne_perfect_details(product_url):
@@ -74,10 +108,10 @@ st.sidebar.subheader("価格帯フィルター")
 min_p = st.sidebar.number_input("最低価格 (円)", min_value=0, value=1000, step=100)
 max_p = st.sidebar.number_input("最高価格 (円)", min_value=0, value=6000, step=100)
 
-# 💡 実績フィルターの表示を見やすく整理
+# 💡 実績フィルター（表記を「関連レビュー数」に統一）
 st.sidebar.subheader("実績フィルター")
 
-st.sidebar.caption("📊 作品レビュー数")
+st.sidebar.caption("📊 関連レビュー数")  # 👈 「作品」から「関連」に修正
 col1, col2 = st.sidebar.columns(2)
 with col1:
     min_rev = st.number_input("最低", min_value=0, value=0, key="min_rev")
@@ -106,7 +140,7 @@ else:
     date_range = None
 
 # --- 🚀 実行ボタン ---
-if st.sidebar.button("リサーチを開始する", type="primary"):
+if st.sidebar.button("リサーチを開始する", type="primary", use_container_width=True): # ボタンを横いっぱいに広げて押しやすく
     if use_date_filter:
         if date_range and len(date_range) == 2:
             start_date, end_date = date_range
@@ -229,5 +263,5 @@ if st.sidebar.button("リサーチを開始する", type="primary"):
         st.success(f"🎯 解析完了！ 条件にマッチした作品が 【 {len(df_final)} 件 】 見つかりました。")
         
         csv = df_final.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(label="📥 結果をExcel(CSV)形式でダウンロード", data=csv, file_name=f"minne_research_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
+        st.download_button(label="📥 データをCSV形式でダウンロード", data=csv, file_name=f"minne_research_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
         st.dataframe(df_final, column_config={"URL": st.column_config.LinkColumn("URL")}, use_container_width=True)

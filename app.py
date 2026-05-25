@@ -11,43 +11,21 @@ import streamlit as st
 # --- ページの設定（タイトルやアイコン） ---
 st.set_page_config(page_title="minne市場リサーチツール", page_icon="🛍️", layout="wide")
 
-# 🎨 大味なデザインを引き締める魔法のカスタムCSS（完全に修正しました）
+# 🎨 画面をギュッと引き締めるコンパクトデザイン設定
 st.markdown("""
     <style>
-    /* 画面全体の文字サイズを少し小さくしてシャープに */
-    html, body, [class*="css"] {
-        font-size: 14px !important;
-    }
-    /* タイトル周りの無駄な余白をカット */
-    .block-container {
-        padding-top: 1.5rem !important;
-        padding-bottom: 1rem !important;
-    }
-    h1 {
-        font-size: 24px !important;
-        font-weight: 700 !important;
-        margin-bottom: 5px !important;
-    }
-    /* サイドバーの入力項目間の隙間をギュッと詰める */
-    div[data-testid="stVerticalBlock"] > div {
-        padding-bottom: 4px !important;
-    }
-    /* 入力ボックスの高さを低くしてコンパクトに */
-    .stTextInput input, .stNumberInput input, .stDateInput input {
-        padding: 6px 10px !important;
-        font-size: 13px !important;
-    }
-    /* キャプション（見出し）を目立たせる */
-    .stMarkdown p {
-        margin-bottom: 2px !important;
-    }
+    html, body, [class*="css"] { font-size: 14px !important; }
+    .block-container { padding-top: 1.5rem !important; padding-bottom: 1rem !important; }
+    h1 { font-size: 24px !important; font-weight: 700 !important; margin-bottom: 5px !important; }
+    div[data-testid="stVerticalBlock"] > div { padding-bottom: 4px !important; }
+    .stTextInput input, .stNumberInput input, .stDateInput input { padding: 6px 10px !important; font-size: 13px !important; }
+    .stMarkdown p { margin-bottom: 2px !important; }
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 st.title("🛍️ minne市場リサーチツール")
-# 💡 ここにあった余計な unsafe_allow_html を削除して綺麗にしました
-st.markdown("<span style='color: gray; font-size: 13px;'>キーワード、またはminneの検索結果URLから売れ行きやライバル作品を爆速で一括解析します。</span>", unsafe-allow_html=True)
-st.write("---") # 区切り線を入れてスッキリ
+st.caption("キーワード、またはminneの検索結果URLから売れ行きやライバル作品を爆速で一括解析します。")
+st.write("---")
 
 # --- 詳細データ抽出関数 ---
 def get_minne_perfect_details(product_url):
@@ -109,7 +87,6 @@ st.sidebar.subheader("価格帯フィルター")
 min_p = st.sidebar.number_input("最低価格 (円)", min_value=0, value=1000, step=100)
 max_p = st.sidebar.number_input("最高価格 (円)", min_value=0, value=6000, step=100)
 
-# 💡 実績フィルター（表記を「関連レビュー数」に統一）
 st.sidebar.subheader("実績フィルター")
 
 st.sidebar.caption("📊 関連レビュー数")
@@ -167,7 +144,6 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
     
     status_text = st.empty()
     
-    # URL集め
     while len(product_urls_with_titles) < limit:
         search_url = f"{base_url}&page={page}" if "?" in base_url else f"{base_url}?page={page}"
         status_text.text(f"📄 minneの {page} ページ目を読み込み中... (現在 {len(product_urls_with_titles)} 件の候補)")
@@ -228,7 +204,6 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
         status_text.empty()
         progress_bar.empty()
         
-        # データクレンジング
         df_raw = pd.DataFrame(raw_results)
         df_filter = df_raw.copy()
         df_filter['価格_数値'] = pd.to_numeric(df_filter['価格'].str.replace('円', '').str.replace(',', '').str.strip(), errors='coerce').fillna(0).astype(int)
@@ -242,7 +217,6 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
             
         df_filter['関連レビュー日1_日付'] = df_filter['関連レビュー日1'].apply(clean_japanese_date)
         
-        # フィルター条件のロジック
         if use_date_filter:
             df_result = df_filter[
                 (df_filter['価格_数値'] >= min_p) & (df_filter['価格_数値'] <= max_p) &

@@ -239,4 +239,19 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
         
         csv = df_final.to_csv(index=False).encode('utf-8-sig')
         st.download_button(label="📥 データをCSV形式でダウンロード", data=csv, file_name=f"minne_research_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
-        st.dataframe(df_final, column_config={"URL": st.column_config.LinkColumn("URL")}, use_container_width=True)
+        
+        # 💡 表の各列の幅をピクセル単位で最適化！
+        st.dataframe(
+            df_final, 
+            column_config={
+                "商品名": st.column_config.TextColumn("商品名", width=200),  # 👈 ほどよい幅にギュッと固定
+                "URL": st.column_config.LinkColumn("URL", width=100),       # 👈 リンク用URLを細めに固定
+                "ショップ名": st.column_config.TextColumn("ショップ名", width=130),
+                "価格": st.column_config.TextColumn("価格", width=80),
+                "関連レビュー数": st.column_config.TextColumn("関連レビュー数", width=110),
+                "関連レビュー日1": st.column_config.TextColumn("関連レビュー日1", width=120),
+                "ショップレビュー数": st.column_config.TextColumn("ショップレビュー数", width=130),
+                "ハッシュタグ": st.column_config.TextColumn("ハッシュタグ", width=200),
+            }, 
+            use_container_width=True
+        )

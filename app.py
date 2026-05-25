@@ -11,7 +11,7 @@ import streamlit as st
 # --- ページの設定（タイトルやアイコン） ---
 st.set_page_config(page_title="minne市場リサーチツール", page_icon="🛍️", layout="wide")
 
-# 🎨 大味なデザインを引き締める魔法のカスタムCSS
+# 🎨 大味なデザインを引き締める魔法のカスタムCSS（修正済み）
 st.markdown("""
     <style>
     /* 画面全体の文字サイズを少し小さくしてシャープに */
@@ -42,7 +42,7 @@ st.markdown("""
         margin-bottom: 2px !important;
     }
     </style>
-    """, unsafe-allow_html=True)
+    """, unsafe_allow_html=True) # 👈 括弧の位置を正しく修正しました！
 
 st.title("🛍️ minne市場リサーチツール")
 st.markdown("<span style='color: gray; font-size: 13px;'>キーワード、またはminneの検索結果URLから売れ行きやライバル作品を爆速で一括解析します。</span>", unsafe-allow_html=True)
@@ -111,7 +111,7 @@ max_p = st.sidebar.number_input("最高価格 (円)", min_value=0, value=6000, s
 # 💡 実績フィルター（表記を「関連レビュー数」に統一）
 st.sidebar.subheader("実績フィルター")
 
-st.sidebar.caption("📊 関連レビュー数")  # 👈 「作品」から「関連」に修正
+st.sidebar.caption("📊 関連レビュー数")
 col1, col2 = st.sidebar.columns(2)
 with col1:
     min_rev = st.number_input("最低", min_value=0, value=0, key="min_rev")
@@ -140,7 +140,7 @@ else:
     date_range = None
 
 # --- 🚀 実行ボタン ---
-if st.sidebar.button("リサーチを開始する", type="primary", use_container_width=True): # ボタンを横いっぱいに広げて押しやすく
+if st.sidebar.button("リサーチを開始する", type="primary", use_container_width=True):
     if use_date_filter:
         if date_range and len(date_range) == 2:
             start_date, end_date = date_range

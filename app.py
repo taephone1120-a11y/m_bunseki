@@ -104,7 +104,7 @@ with col4:
     max_shop_rev = st.number_input("最高", min_value=0, value=99999, key="max_shop_rev")
 
 st.sidebar.subheader("日付フィルター")
-use_date_filter = st.sidebar.checkbox("対象とする関連レビューの日付を指定する", value=False)
+use_date_filter = st.sidebar.checkbox("関連レビューの日付を指定する", value=False)
 
 if use_date_filter:
     today = datetime.now()

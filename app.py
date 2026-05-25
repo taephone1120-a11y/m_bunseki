@@ -80,7 +80,7 @@ def get_minne_perfect_details(product_url):
 
 # --- 🛰️ 画面（サイドバー）の設定 ➔ 入力フォームを作る ---
 st.sidebar.header("🔍 検索・フィルター条件")
-target_input = st.sidebar.text_input("キーワード または 検索結果URL", value="天然石 リング アメジスト")
+target_input = st.sidebar.text_input("キーワード または 検索結果URL", value="")
 limit = st.sidebar.number_input("解析する件数上限", min_value=10, max_value=200, value=40, step=10)
 
 st.sidebar.subheader("価格帯フィルター")

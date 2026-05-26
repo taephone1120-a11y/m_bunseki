@@ -31,7 +31,7 @@ st.markdown("""
         margin-bottom: 5px !important;
         display: block;
     }
-    /* 🛠️ カレンダー入力欄の隙間をさらに詰めて見やすくする設定 */
+    /* カレンダー入力欄の隙間をさらに詰めて見やすくする設定 */
     div[data-testid="stDateInput"] label { display: none !important; }
     </style>
 """, unsafe_allow_html=True)
@@ -80,7 +80,7 @@ def get_minne_perfect_details(product_url):
                 shop_review_num = int(shop_match.group(1))
                 shop_review_count = f"{shop_review_num}件"
 
-        # 関連レビュー直近3件の取得（作品ページ用）
+        # 関連レビュー直近3件の取得
         date_list = []
         if related_num == 0:
             date_list = ["なし", "なし", "なし"]
@@ -90,19 +90,17 @@ def get_minne_perfect_details(product_url):
                 if i < len(review_dates): date_list.append(review_dates[i].text.strip())
                 else: date_list.append("なし")
         
-        # 🛰️ 空振り防止リカバリー機能（最大10ページ遡る）
+        # 最初のショップレビュー日を取得
         first_shop_review_date = "なし"
         if shop_review_num > 0 and shop_tag and shop_tag.get("href"):
             try:
                 raw_path = shop_tag.get("href").split('?')[0].strip('/')
                 shop_id = raw_path.split('/')[-1] 
-                
                 calculated_last_page = math.ceil(shop_review_num / 10)
                 
                 for retry_offset in range(10):
                     target_page = calculated_last_page - retry_offset
                     if target_page <= 0: break
-                    
                     reviews_url = f"https://minne.com/{shop_id}/reviews?page={target_page}"
                     
                     time.sleep(0.1)
@@ -133,6 +131,10 @@ def get_minne_perfect_details(product_url):
         }
     except: return {}
 
+# --- セッション状態の初期化（解析結果を保持して、あとからキーワードで絞り込めるようにする） ---
+if "df_scraped_raw" not in st.session_state:
+    st.session_state.df_scraped_raw = None
+
 # --- 🛰️ 画面（サイドバー）の設定 ➔ 入力フォームを作る ---
 st.sidebar.header("🔍 検索・フィルター条件")
 target_input = st.sidebar.text_input("キーワード または 検索結果URL", value="")
@@ -152,40 +154,29 @@ with col1:
 with col2:
     max_rev = st.number_input("最高", min_value=0, value=9999, key="max_rev")
 
-# 🛠️ 3つの関連レビュー日（重複タイトルラベルを空文字 "" に修正してカット）
 today = datetime.now()
 seven_days_ago = today - timedelta(days=7)
 
-# (1) 最新の関連レビュー日
+# 最新の関連レビュー日
 use_date_filter_1 = st.sidebar.checkbox("最新の関連レビュー日を指定する", value=False)
 if use_date_filter_1:
-    date_range_1 = st.sidebar.date_input(
-        "",  # 🛠️ タイトルを空にしてカット
-        value=(seven_days_ago, today), max_value=today, key="dr_related_1"
-    )
+    date_range_1 = st.sidebar.date_input("", value=(seven_days_ago, today), max_value=today, key="dr_related_1")
 else:
     date_range_1 = None
 
-# (2) 2件目の関連レビュー日
+# 2件目の関連レビュー日
 use_date_filter_2 = st.sidebar.checkbox("2件目の関連レビュー日を指定する", value=False)
 if use_date_filter_2:
-    date_range_2 = st.sidebar.date_input(
-        "",  # 🛠️ タイトルを空にしてカット
-        value=(seven_days_ago, today), max_value=today, key="dr_related_2"
-    )
+    date_range_2 = st.sidebar.date_input("", value=(seven_days_ago, today), max_value=today, key="dr_related_2")
 else:
     date_range_2 = None
 
-# (3) 3件目の関連レビュー日
+# 3件目の関連レビュー日
 use_date_filter_3 = st.sidebar.checkbox("3件目の関連レビュー日を指定する", value=False)
 if use_date_filter_3:
-    date_range_3 = st.sidebar.date_input(
-        "",  # 🛠️ タイトルを空にしてカット
-        value=(seven_days_ago, today), max_value=today, key="dr_related_3"
-    )
+    date_range_3 = st.sidebar.date_input("", value=(seven_days_ago, today), max_value=today, key="dr_related_3")
 else:
     date_range_3 = None
-
 
 # ② ショップレビュー数の入力
 st.sidebar.markdown('<span class="custom-sidebar-label">🏪 ショップレビュー数</span>', unsafe_allow_html=True)
@@ -199,51 +190,23 @@ with col4:
 use_shop_date_filter = st.sidebar.checkbox("最初のショップレビュー日を指定する", value=False)
 if use_shop_date_filter:
     ten_years_ago = today - timedelta(days=3652)
-    shop_date_range = st.sidebar.date_input(
-        "",  # 🛠️ タイトルを空にしてカット
-        value=(ten_years_ago, today), max_value=today, key="date_range_shop"
-    )
+    shop_date_range = st.sidebar.date_input("", value=(ten_years_ago, today), max_value=today, key="date_range_shop")
 else:
     shop_date_range = None
 
-
-# --- 🚀 実行ボタン ---
+# --- 🚀 リサーチ開始ボタン（クリック時に新データをスクレイピング） ---
 if st.sidebar.button("リサーチを開始する", type="primary", use_container_width=True):
-    # 各日付フィルターのエラーチェックとタイムスタンプ化
-    if use_date_filter_1:
-        if date_range_1 and len(date_range_1) == 2:
-            start_dt_1 = datetime.combine(date_range_1[0], datetime.min.time())
-            end_dt_1 = datetime.combine(date_range_1[1], datetime.max.time())
-        else:
-            st.error("❌ 「最新の関連レビュー日」の開始日と終了日を選択してください。")
-            st.stop()
-            
-    if use_date_filter_2:
-        if date_range_2 and len(date_range_2) == 2:
-            start_dt_2 = datetime.combine(date_range_2[0], datetime.min.time())
-            end_dt_2 = datetime.combine(date_range_2[1], datetime.max.time())
-        else:
-            st.error("❌ 「2件目の関連レビュー日」の開始日と終了日を選択してください。")
-            st.stop()
-            
-    if use_date_filter_3:
-        if date_range_3 and len(date_range_3) == 2:
-            start_dt_3 = datetime.combine(date_range_3[0], datetime.min.time())
-            end_dt_3 = datetime.combine(date_range_3[1], datetime.max.time())
-        else:
-            st.error("❌ 「3件目の関連レビュー日」の開始日と終了日を選択してください。")
-            st.stop()
-
-    if use_shop_date_filter:
-        if shop_date_range and len(shop_date_range) == 2:
-            shop_start_dt = datetime.combine(shop_date_range[0], datetime.min.time())
-            shop_end_dt = datetime.combine(shop_date_range[1], datetime.max.time())
-        else:
-            st.error("❌ 最初のショップレビュー日の開始日と終了日を選択してください。")
-            st.stop()
+    # エラーチェック
+    if use_date_filter_1 and (not date_range_1 or len(date_range_1) != 2):
+        st.error("❌ 「最新の関連レビュー日」の開始日と終了日を選択してください。"); st.stop()
+    if use_date_filter_2 and (not date_range_2 or len(date_range_2) != 2):
+        st.error("❌ 「2件目の関連レビュー日」の開始日と終了日を選択してください。"); st.stop()
+    if use_date_filter_3 and (not date_range_3 or len(date_range_3) != 2):
+        st.error("❌ 「3件目の関連レビュー日」の開始日と終了日を選択してください。"); st.stop()
+    if use_shop_date_filter and (not shop_date_range or len(shop_date_range) != 2):
+        st.error("❌ 最初のショップレビュー日の開始日と終了日を選択してください。"); st.stop()
 
     headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
-    
     if target_input.startswith("http://") or target_input.startswith("https://"):
         st.info("🔗 URLモードで実行中...")
         base_url = target_input
@@ -260,7 +223,6 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
     while len(product_urls_with_titles) < limit:
         search_url = f"{base_url}&page={page}" if "?" in base_url else f"{base_url}?page={page}"
         status_text.text(f"📄 minneの {page} ページ目を読み込み中... (現在 {len(product_urls_with_titles)} 件の候補)")
-        
         try:
             response = requests.get(search_url, headers=headers)
             if response.status_code != 200: break
@@ -287,12 +249,11 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
             break
 
     total_to_scrape = min(limit, len(product_urls_with_titles))
-    
     if total_to_scrape == 0:
         st.error("❌ 条件に合う商品が1件も取得できませんでした。")
+        st.session_state.df_scraped_raw = None
     else:
         status_text.text(f"📦 候補 {total_to_scrape} 件の詳細データを並行解析中...（しばらくお待ちください）")
-        
         progress_bar = st.progress(0)
         raw_results = [None] * total_to_scrape
         completed_count = 0
@@ -319,64 +280,93 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
         status_text.empty()
         progress_bar.empty()
         
-        df_raw = pd.DataFrame(raw_results)
-        df_filter = df_raw.copy()
-        df_filter['価格_数値'] = pd.to_numeric(df_filter['価格'].str.replace('円', '').str.replace(',', '').str.strip(), errors='coerce').fillna(0).astype(int)
-        df_filter['関連レビュー_数値'] = pd.to_numeric(df_filter['関連レビュー数'].str.replace('件', '').str.strip(), errors='coerce').fillna(0).astype(int)
-        df_filter['ショップレビュー_数値'] = pd.to_numeric(df_filter['ショップレビュー数'].str.replace('件', '').str.strip(), errors='coerce').fillna(0).astype(int)
+        # データをセッションに保存
+        st.session_state.df_scraped_raw = pd.DataFrame(raw_results)
+
+# --- 📊 データ表示 ＆ キーワードリアルタイム絞り込み処理 ---
+if st.session_state.df_scraped_raw is not None:
+    df_filter = st.session_state.df_scraped_raw.copy()
+    
+    # 内部計算用の数値・日付化
+    df_filter['価格_数値'] = pd.to_numeric(df_filter['価格'].str.replace('円', '').str.replace(',', '').str.strip(), errors='coerce').fillna(0).astype(int)
+    df_filter['関連レビュー_数値'] = pd.to_numeric(df_filter['関連レビュー数'].str.replace('件', '').str.strip(), errors='coerce').fillna(0).astype(int)
+    df_filter['ショップレビュー_数値'] = pd.to_numeric(df_filter['ショップレビュー数'].str.replace('件', '').str.strip(), errors='coerce').fillna(0).astype(int)
+    
+    def clean_japanese_date(date_str):
+        if not date_str or pd.isna(date_str) or date_str in ['なし', 'レビューなし', '解析失敗', 'レビュー日なし']: return pd.NaT
+        try: return pd.to_datetime(date_str.replace('年', '/').replace('月', '/').replace('日', '').strip(), format='%Y/%m/%d')
+        except: return pd.NaT
         
-        def clean_japanese_date(date_str):
-            if not date_str or pd.isna(date_str) or date_str in ['なし', 'レビューなし', '解析失敗', 'レビュー日なし']: return pd.NaT
-            try: return pd.to_datetime(date_str.replace('年', '/').replace('月', '/').replace('日', '').strip(), format='%Y/%m/%d')
-            except: return pd.NaT
-            
-        df_filter['最新の関連レビュー日_日付'] = df_filter['最新の関連レビュー日'].apply(clean_japanese_date)
-        df_filter['2件目の関連レビュー日_日付'] = df_filter['2件目の関連レビュー日'].apply(clean_japanese_date)
-        df_filter['3件目の関連レビュー日_日付'] = df_filter['3件目の関連レビュー日'].apply(clean_japanese_date)
-        df_filter['最初のショップレビュー日_日付'] = df_filter['最初のショップレビュー日'].apply(clean_japanese_date)
+    df_filter['最新の関連レビュー日_日付'] = df_filter['最新の関連レビュー日'].apply(clean_japanese_date)
+    df_filter['2件目の関連レビュー日_日付'] = df_filter['2件目の関連レビュー日'].apply(clean_japanese_date)
+    df_filter['3件目の関連レビュー日_日付'] = df_filter['3件目の関連レビュー日'].apply(clean_japanese_date)
+    df_filter['最初のショップレビュー日_日付'] = df_filter['最初のショップレビュー日'].apply(clean_japanese_date)
+    
+    # サイドバーの条件を適用
+    query_condition = (
+        (df_filter['価格_数値'] >= min_p) & (df_filter['価格_数値'] <= max_p) &
+        (df_filter['関連レビュー_数値'] >= min_rev) & (df_filter['関連レビュー_数値'] <= max_rev) &
+        (df_filter['ショップレビュー_数値'] >= min_shop_rev) & (df_filter['ショップレビュー_数値'] <= max_shop_rev)
+    )
+    
+    if use_date_filter_1 and date_range_1:
+        start_dt_1 = datetime.combine(date_range_1[0], datetime.min.time())
+        end_dt_1 = datetime.combine(date_range_1[1], datetime.max.time())
+        query_condition = query_condition & (df_filter['関連レビュー_数値'] >= 1) & (df_filter['最新の関連レビュー日_日付'] >= start_dt_1) & (df_filter['最新の関連レビュー日_日付'] <= end_dt_1)
         
-        query_condition = (
-            (df_filter['価格_数値'] >= min_p) & (df_filter['価格_数値'] <= max_p) &
-            (df_filter['関連レビュー_数値'] >= min_rev) & (df_filter['関連レビュー_数値'] <= max_rev) &
-            (df_filter['ショップレビュー_数値'] >= min_shop_rev) & (df_filter['ショップレビュー_数値'] <= max_shop_rev)
+    if use_date_filter_2 and date_range_2:
+        start_dt_2 = datetime.combine(date_range_2[0], datetime.min.time())
+        end_dt_2 = datetime.combine(date_range_2[1], datetime.max.time())
+        query_condition = query_condition & (df_filter['関連レビュー_数値'] >= 2) & (df_filter['2件目の関連レビュー日_日付'] >= start_dt_2) & (df_filter['2件目の関連レビュー日_日付'] <= end_dt_2)
+        
+    if use_date_filter_3 and date_range_3:
+        start_dt_3 = datetime.combine(date_range_3[0], datetime.min.time())
+        end_dt_3 = datetime.combine(date_range_3[1], datetime.max.time())
+        query_condition = query_condition & (df_filter['関連レビュー_数値'] >= 3) & (df_filter['3件目の関連レビュー日_日付'] >= start_dt_3) & (df_filter['3件目の関連レビュー日_日付'] <= end_dt_3)
+        
+    if use_shop_date_filter and shop_date_range:
+        shop_start_dt = datetime.combine(shop_date_range[0], datetime.min.time())
+        shop_end_dt = datetime.combine(shop_date_range[1], datetime.max.time())
+        query_condition = query_condition & (df_filter['ショップレビュー_数値'] > 0) & (df_filter['最初のショップレビュー日_日付'] >= shop_start_dt) & (df_filter['最初のショップレビュー日_日付'] <= shop_end_dt)
+        
+    df_result = df_filter[query_condition]
+    display_cols = ["ショップ名", "商品名", "価格", "URL", "関連レビュー数", "最新の関連レビュー日", "2件目の関連レビュー日", "3件目の関連レビュー日", "ショップレビュー数", "最初のショップレビュー日", "ハッシュタグ"]
+    df_final = df_result[display_cols]
+    
+    # 🛠️ 【新機能】出力結果のメイン画面側でのリアルタイムキーワード絞り込み
+    st.markdown("### 📊 解析結果のデータボックス")
+    search_keyword = st.text_input("🔍 出力データ内をさらに絞り込む（ショップ名・作品名・ハッシュタグなどから検索）", value="")
+    
+    if search_keyword:
+        # キーワードが「ショップ名」「商品名」「ハッシュタグ」「価格」のいずれかに部分一致するか判定
+        keyword_cond = (
+            df_final['ショップ名'].str.contains(search_keyword, case=False, na=False) |
+            df_final['商品名'].str.contains(search_keyword, case=False, na=False) |
+            df_final['ハッシュタグ'].str.contains(search_keyword, case=False, na=False) |
+            df_final['価格'].str.contains(search_keyword, case=False, na=False)
         )
+        df_final = df_final[keyword_cond]
         
-        if use_date_filter_1:
-            query_condition = query_condition & (df_filter['関連レビュー_数値'] >= 1) & (df_filter['最新の関連レビュー日_日付'] >= start_dt_1) & (df_filter['最新の関連レビュー日_日付'] <= end_dt_1)
-            
-        if use_date_filter_2:
-            query_condition = query_condition & (df_filter['関連レビュー_数値'] >= 2) & (df_filter['2件目の関連レビュー日_日付'] >= start_dt_2) & (df_filter['2件目の関連レビュー日_日付'] <= end_dt_2)
-            
-        if use_date_filter_3:
-            query_condition = query_condition & (df_filter['関連レビュー_数値'] >= 3) & (df_filter['3件目の関連レビュー日_日付'] >= start_dt_3) & (df_filter['3件目の関連レビュー日_日付'] <= end_dt_3)
-            
-        if use_shop_date_filter:
-            query_condition = query_condition & (df_filter['ショップレビュー_数値'] > 0) & (df_filter['最初のショップレビュー日_日付'] >= shop_start_dt) & (df_filter['最初のショップレビュー日_日付'] <= shop_end_dt)
-            
-        df_result = df_filter[query_condition]
-        
-        display_cols = ["ショップ名", "商品名", "価格", "URL", "関連レビュー数", "最新の関連レビュー日", "2件目の関連レビュー日", "3件目の関連レビュー日", "ショップレビュー数", "最初のショップレビュー日", "ハッシュタグ"]
-        df_final = df_result[display_cols]
-        
-        st.success(f"🎯 解析完了！ 条件にマッチした作品が 【 {len(df_final)} 件 】 見つかりました。")
-        
-        csv = df_final.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(label="📥 データをCSV形式でダウンロード", data=csv, file_name=f"minne_research_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
-        
-        st.dataframe(
-            df_final, 
-            column_config={
-                "商品名": st.column_config.TextColumn("商品名", width=200),  
-                "URL": st.column_config.LinkColumn("URL", width=100),       
-                "ショップ名": st.column_config.TextColumn("ショップ名", width=130),
-                "価格": st.column_config.TextColumn("価格", width=80),
-                "関連レビュー数": st.column_config.TextColumn("関連レビュー数", width=110),
-                "最新の関連レビュー日": st.column_config.TextColumn("最新の関連レビュー日", width=140),
-                "2件目の関連レビュー日": st.column_config.TextColumn("2件目の関連レビュー日", width=140),
-                "3件目の関連レビュー日": st.column_config.TextColumn("3件目の関連レビュー日", width=140),
-                "ショップレビュー数": st.column_config.TextColumn("ショップレビュー数", width=130),
-                "最初のショップレビュー日": st.column_config.TextColumn("最初のショップレビュー日", width=160), 
-                "ハッシュタグ": st.column_config.TextColumn("ハッシュタグ", width=200),
-            }, 
-            use_container_width=True
-        )
+    st.success(f"🎯 マッチした作品が 【 {len(df_final)} 件 】 表示されています。")
+    
+    # CSVダウンロードボタン（絞り込んだ後の状態をダウンロード可能）
+    csv = df_final.to_csv(index=False).encode('utf-8-sig')
+    st.download_button(label="📥 データをCSV形式でダウンロード", data=csv, file_name=f"minne_research_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
+    
+    st.dataframe(
+        df_final, 
+        column_config={
+            "商品名": st.column_config.TextColumn("商品名", width=200),  
+            "URL": st.column_config.LinkColumn("URL", width=100),       
+            "ショップ名": st.column_config.TextColumn("ショップ名", width=130),
+            "価格": st.column_config.TextColumn("価格", width=80),
+            "関連レビュー数": st.column_config.TextColumn("関連レビュー数", width=110),
+            "最新の関連レビュー日": st.column_config.TextColumn("最新の関連レビュー日", width=140),
+            "2件目の関連レビュー日": st.column_config.TextColumn("2件目の関連レビュー日", width=140),
+            "3件目の関連レビュー日": st.column_config.TextColumn("3件目の関連レビュー日", width=140),
+            "ショップレビュー数": st.column_config.TextColumn("ショップレビュー数", width=130),
+            "最初のショップレビュー日": st.column_config.TextColumn("最初のショップレビュー日", width=160), 
+            "ハッシュタグ": st.column_config.TextColumn("ハッシュタグ", width=200),
+        }, 
+        use_container_width=True
+    )

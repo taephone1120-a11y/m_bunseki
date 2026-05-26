@@ -131,7 +131,7 @@ def get_minne_perfect_details(product_url):
         }
     except: return {}
 
-# --- セッション状態の初期化（解析結果を保持して、あとからキーワードで絞り込めるようにする） ---
+# --- セッション状態の初期化 ---
 if "df_scraped_raw" not in st.session_state:
     st.session_state.df_scraped_raw = None
 
@@ -194,9 +194,8 @@ if use_shop_date_filter:
 else:
     shop_date_range = None
 
-# --- 🚀 リサーチ開始ボタン（クリック時に新データをスクレイピング） ---
+# --- 🚀 リサーチ開始ボタン ---
 if st.sidebar.button("リサーチを開始する", type="primary", use_container_width=True):
-    # エラーチェック
     if use_date_filter_1 and (not date_range_1 or len(date_range_1) != 2):
         st.error("❌ 「最新の関連レビュー日」の開始日と終了日を選択してください。"); st.stop()
     if use_date_filter_2 and (not date_range_2 or len(date_range_2) != 2):
@@ -279,15 +278,12 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
         
         status_text.empty()
         progress_bar.empty()
-        
-        # データをセッションに保存
         st.session_state.df_scraped_raw = pd.DataFrame(raw_results)
 
-# --- 📊 データ表示 ＆ キーワードリアルタイム絞り込み処理 ---
+# --- 📊 データ表示処理 ---
 if st.session_state.df_scraped_raw is not None:
     df_filter = st.session_state.df_scraped_raw.copy()
     
-    # 内部計算用の数値・日付化
     df_filter['価格_数値'] = pd.to_numeric(df_filter['価格'].str.replace('円', '').str.replace(',', '').str.strip(), errors='coerce').fillna(0).astype(int)
     df_filter['関連レビュー_数値'] = pd.to_numeric(df_filter['関連レビュー数'].str.replace('件', '').str.strip(), errors='coerce').fillna(0).astype(int)
     df_filter['ショップレビュー_数値'] = pd.to_numeric(df_filter['ショップレビュー数'].str.replace('件', '').str.strip(), errors='coerce').fillna(0).astype(int)
@@ -302,7 +298,6 @@ if st.session_state.df_scraped_raw is not None:
     df_filter['3件目の関連レビュー日_日付'] = df_filter['3件目の関連レビュー日'].apply(clean_japanese_date)
     df_filter['最初のショップレビュー日_日付'] = df_filter['最初のショップレビュー日'].apply(clean_japanese_date)
     
-    # サイドバーの条件を適用
     query_condition = (
         (df_filter['価格_数値'] >= min_p) & (df_filter['価格_数値'] <= max_p) &
         (df_filter['関連レビュー_数値'] >= min_rev) & (df_filter['関連レビュー_数値'] <= max_rev) &
@@ -333,40 +328,28 @@ if st.session_state.df_scraped_raw is not None:
     display_cols = ["ショップ名", "商品名", "価格", "URL", "関連レビュー数", "最新の関連レビュー日", "2件目の関連レビュー日", "3件目の関連レビュー日", "ショップレビュー数", "最初のショップレビュー日", "ハッシュタグ"]
     df_final = df_result[display_cols]
     
-    # 🛠️ 【新機能】出力結果のメイン画面側でのリアルタイムキーワード絞り込み
     st.markdown("### 📊 解析結果のデータボックス")
-    search_keyword = st.text_input("🔍 出力データ内をさらに絞り込む（ショップ名・作品名・ハッシュタグなどから検索）", value="")
     
-    if search_keyword:
-        # キーワードが「ショップ名」「商品名」「ハッシュタグ」「価格」のいずれかに部分一致するか判定
-        keyword_cond = (
-            df_final['ショップ名'].str.contains(search_keyword, case=False, na=False) |
-            df_final['商品名'].str.contains(search_keyword, case=False, na=False) |
-            df_final['ハッシュタグ'].str.contains(search_keyword, case=False, na=False) |
-            df_final['価格'].str.contains(search_keyword, case=False, na=False)
-        )
-        df_final = df_final[keyword_cond]
-        
-    st.success(f"🎯 マッチした作品が 【 {len(df_final)} 件 】 表示されています。")
+    # メッセージ非表示のご要望に合わせ、「🎯マッチした作品が〜」のテキスト出力をカットしました。
     
-    # CSVダウンロードボタン（絞り込んだ後の状態をダウンロード可能）
     csv = df_final.to_csv(index=False).encode('utf-8-sig')
     st.download_button(label="📥 データをCSV形式でダウンロード", data=csv, file_name=f"minne_research_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
     
+    # 🛠️ 各列の最小幅（width）を少し広げて、タイトル横のメニュー（点点点）を操作しやすく改善
     st.dataframe(
         df_final, 
         column_config={
-            "商品名": st.column_config.TextColumn("商品名", width=200),  
-            "URL": st.column_config.LinkColumn("URL", width=100),       
-            "ショップ名": st.column_config.TextColumn("ショップ名", width=130),
-            "価格": st.column_config.TextColumn("価格", width=80),
-            "関連レビュー数": st.column_config.TextColumn("関連レビュー数", width=110),
-            "最新の関連レビュー日": st.column_config.TextColumn("最新の関連レビュー日", width=140),
-            "2件目の関連レビュー日": st.column_config.TextColumn("2件目の関連レビュー日", width=140),
-            "3件目の関連レビュー日": st.column_config.TextColumn("3件目の関連レビュー日", width=140),
-            "ショップレビュー数": st.column_config.TextColumn("ショップレビュー数", width=130),
-            "最初のショップレビュー日": st.column_config.TextColumn("最初のショップレビュー日", width=160), 
-            "ハッシュタグ": st.column_config.TextColumn("ハッシュタグ", width=200),
+            "商品名": st.column_config.TextColumn("商品名", width=250),  
+            "URL": st.column_config.LinkColumn("URL", width=120),       
+            "ショップ名": st.column_config.TextColumn("ショップ名", width=160),
+            "価格": st.column_config.TextColumn("価格", width=110),
+            "関連レビュー数": st.column_config.TextColumn("関連レビュー数", width=130),
+            "最新の関連レビュー日": st.column_config.TextColumn("最新の関連レビュー日", width=150),
+            "2件目の関連レビュー日": st.column_config.TextColumn("2件目の関連レビュー日", width=150),
+            "3件目の関連レビュー日": st.column_config.TextColumn("3件目の関連レビュー日", width=150),
+            "ショップレビュー数": st.column_config.TextColumn("ショップレビュー数", width=150),
+            "最初のショップレビュー日": st.column_config.TextColumn("最初のショップレビュー日", width=180), 
+            "ハッシュタグ": st.column_config.TextColumn("ハッシュタグ", width=250),
         }, 
         use_container_width=True
     )

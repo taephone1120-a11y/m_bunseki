@@ -78,29 +78,37 @@ def get_minne_perfect_details(product_url):
                 if i < len(review_dates): date_list.append(review_dates[i].text.strip())
                 else: date_list.append("なし")
         
-        # 🎯 【完全修正】テキスト全スキャン方式による最古レビュー日抽出ロジック
+        # 🎯 【修正】空振り防止リカバリー機能付き・最古レビュー日抽出ロジック
         oldest_shop_review_date = "なし"
         if shop_review_num > 0 and shop_tag and shop_tag.get("href"):
             try:
                 raw_path = shop_tag.get("href").split('?')[0].strip('/')
                 shop_id = raw_path.split('/')[-1] 
                 
-                # 最終ページ番号を算出（1ページ10件）
-                last_page = math.ceil(shop_review_num / 10)
-                reviews_url = f"https://minne.com/{shop_id}/reviews?page={last_page}"
+                # 計算上の最終ページ（1ページ10件）
+                calculated_last_page = math.ceil(shop_review_num / 10)
                 
-                time.sleep(0.1)
-                rev_res = requests.get(reviews_url, headers=headers, timeout=10)
-                if rev_res.status_code == 200:
-                    # 💡 ページ内のすべての「YYYY/MM/DD」形式の文字を抽出
-                    found_dates = re.findall(r'\d{4}/\d{2}/\d{2}', rev_res.text)
-                    if found_dates:
-                        # 文字列のまま並び替えて、一番古い（過去の）日付を自動でピックアップ！
-                        oldest_shop_review_date = min(found_dates)
+                # レビューが削除されて空振りした時のために、最大3ページ分遡るループ
+                for retry_offset in range(3):
+                    target_page = calculated_last_page - retry_offset
+                    if target_page <= 0: break  # 1ページ目より前には戻らない
+                    
+                    reviews_url = f"https://minne.com/{shop_id}/reviews?page={target_page}"
+                    
+                    time.sleep(0.1)
+                    rev_res = requests.get(reviews_url, headers=headers, timeout=10)
+                    if rev_res.status_code == 200:
+                        found_dates = re.findall(r'\d{4}/\d{2}/\d{2}', rev_res.text)
+                        if found_dates:
+                            oldest_shop_review_date = min(found_dates)
+                            break  # 💡 日付が見つかったらループを抜けて終了！
+                        else:
+                            # ページは開けたが日付がない（削除による空振り）場合、次のループで1ページ戻る
+                            oldest_shop_review_date = "レビュー日なし"
                     else:
-                        oldest_shop_review_date = "レビュー日なし"
-                else:
-                    oldest_shop_review_date = f"エラー({rev_res.status_code})"
+                        oldest_shop_review_date = f"エラー({rev_res.status_code})"
+                        # 404エラーなどの場合も、ページ自体が存在しない可能性があるので1ページ戻って試す
+                        continue
             except:
                 oldest_shop_review_date = "解析失敗"
         

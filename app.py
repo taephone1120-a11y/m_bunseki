@@ -78,7 +78,7 @@ def get_minne_perfect_details(product_url):
                 if i < len(review_dates): date_list.append(review_dates[i].text.strip())
                 else: date_list.append("なし")
         
-        # 🎯 【修正】空振り防止リカバリー機能（最大10ページ遡る）
+        # 🛰️ 空振り防止リカバリー機能（最大10ページ遡る）
         oldest_shop_review_date = "なし"
         if shop_review_num > 0 and shop_tag and shop_tag.get("href"):
             try:
@@ -101,13 +101,11 @@ def get_minne_perfect_details(product_url):
                         found_dates = re.findall(r'\d{4}/\d{2}/\d{2}', rev_res.text)
                         if found_dates:
                             oldest_shop_review_date = min(found_dates)
-                            break  # 💡 日付が見つかったら即座にループを抜ける
+                            break  # 日付が見つかったら即座にループを抜ける
                         else:
-                            # ページは開けたが日付がない（削除による空振り）場合、次のループへ進む
                             oldest_shop_review_date = "レビュー日なし"
                     else:
                         oldest_shop_review_date = f"エラー({rev_res.status_code})"
-                        # 404エラーなどの場合も、ページ自体が存在しない可能性があるので手前に戻る
                         continue
             except:
                 oldest_shop_review_date = "解析失敗"
@@ -136,6 +134,7 @@ max_p = st.sidebar.number_input("最高価格 (円)", min_value=0, value=6000, s
 
 st.sidebar.subheader("実績フィルター")
 
+# ① 関連レビュー数（件数）の入力
 st.sidebar.caption("📊 関連レビュー数")
 col1, col2 = st.sidebar.columns(2)
 with col1:
@@ -143,16 +142,8 @@ with col1:
 with col2:
     max_rev = st.number_input("最高", min_value=0, value=9999, key="max_rev")
 
-st.sidebar.caption("🏪 ショップレビュー数")
-col3, col4 = st.sidebar.columns(2)
-with col3:
-    min_shop_rev = st.number_input("最低", min_value=0, value=0, key="min_shop_rev")
-with col4:
-    max_shop_rev = st.number_input("最高", min_value=0, value=99999, key="max_shop_rev")
-
-st.sidebar.subheader("日付フィルター")
+# 🛠️ 【配置変更】関連レビューの日付フィルターをここに移動
 use_date_filter = st.sidebar.checkbox("関連レビューの日付を指定する", value=False)
-
 if use_date_filter:
     today = datetime.now()
     seven_days_ago = today - timedelta(days=7)
@@ -163,6 +154,15 @@ if use_date_filter:
     )
 else:
     date_range = None
+
+# ③ ショップレビュー数の入力（日付の下に配置）
+st.sidebar.caption("🏪 ショップレビュー数")
+col3, col4 = st.sidebar.columns(2)
+with col3:
+    min_shop_rev = st.number_input("最低", min_value=0, value=0, key="min_shop_rev")
+with col4:
+    max_shop_rev = st.number_input("最高", min_value=0, value=99999, key="max_shop_rev")
+
 
 # --- 🚀 実行ボタン ---
 if st.sidebar.button("リサーチを開始する", type="primary", use_container_width=True):

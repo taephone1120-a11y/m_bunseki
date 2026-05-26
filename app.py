@@ -139,7 +139,9 @@ if "df_scraped_raw" not in st.session_state:
 # --- 🛰️ 画面（サイドバー）の設定 ➔ 入力フォームを作る ---
 st.sidebar.header("🔍 検索・フィルター条件")
 target_input = st.sidebar.text_input("キーワード または 検索結果URL", value="")
-limit = st.sidebar.number_input("解析する件数上限", min_value=10, max_value=200, value=40, step=10)
+
+# 🛠️ 【変更箇所】件数の上限を 200 ➔ 500 に拡大しました
+limit = st.sidebar.number_input("解析する件数上限", min_value=10, max_value=500, value=40, step=10)
 
 st.sidebar.subheader("価格帯フィルター")
 min_p = st.sidebar.number_input("最低価格 (円)", min_value=0, value=1000, step=100)
@@ -329,7 +331,7 @@ if st.session_state.df_scraped_raw is not None:
     display_cols = ["ショップ名", "商品名", "価格", "URL", "関連レビュー数", "最新の関連レビュー日", "2件目の関連レビュー日", "3件目の関連レビュー日", "ショップレビュー数", "最初のショップレビュー日", "ハッシュタグ"]
     df_final = df_result[display_cols].copy()
     
-    # --- 🛠️ Excel生成（フィルター付き＆コンパクト幅設計） ---
+    # --- Excel生成（フィルター付き＆コンパクト幅設計） ---
     output_excel = io.BytesIO()
     with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
         df_final.to_excel(writer, index=False, sheet_name='リサーチ結果')
@@ -361,7 +363,7 @@ if st.session_state.df_scraped_raw is not None:
                 else:
                     cell.font = normal_font
                     
-        # 🏎️ 各列の幅をギュッと縮めてスマートに調整（文字がギリギリ隠れない最小幅）
+        # 各列の幅をギュッと縮めてスマートに調整
         for col in worksheet.columns:
             max_len = 0
             col_letter = col[0].column_letter
@@ -370,12 +372,11 @@ if st.session_state.df_scraped_raw is not None:
                 cell_len = sum([(2 if ord(c) > 256 else 1) for c in val_str])
                 if cell_len > max_len:
                     max_len = cell_len
-            # フィルターの▼マーク分だけ最低限確保し、最大でも少し細めに制限（商品名は長すぎる場合カット）
             worksheet.column_dimensions[col_letter].width = min(max(max_len + 5, 11), 32)
             
     processed_excel = output_excel.getvalue()
     
-    # 📥 ボタンの文字をシンプルに修正
+    # 📥 ダウンロードボタン
     st.download_button(
         label="📥 Excel形式でダウンロード", 
         data=processed_excel, 
@@ -383,7 +384,7 @@ if st.session_state.df_scraped_raw is not None:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     
-    # テーブル表示（画面側の幅設定）
+    # テーブル表示
     st.dataframe(
         df_final, 
         column_config={

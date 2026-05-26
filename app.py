@@ -12,7 +12,7 @@ import streamlit as st
 # --- ページの設定（タイトルやアイコン） ---
 st.set_page_config(page_title="minne市場リサーチツール", page_icon="🛍️", layout="wide")
 
-# 🎨 画面をギュッと引き締めるコンパクトデザイン設定
+# 🎨 画面をギュッと引き締めるコンパクトデザイン ＆ 文字色カスタム設定
 st.markdown("""
     <style>
     html, body, [class*="css"] { font-size: 14px !important; }
@@ -21,6 +21,16 @@ st.markdown("""
     div[data-testid="stVerticalBlock"] > div { padding-bottom: 4px !important; }
     .stTextInput input, .stNumberInput input, .stDateInput input { padding: 6px 10px !important; font-size: 13px !important; }
     .stMarkdown p { margin-bottom: 2px !important; }
+    
+    /* 🛠️ サイドバーの独自テキストを黒くするための設定 */
+    .custom-sidebar-label {
+        color: #111111 !important;
+        font-weight: 600 !important;
+        font-size: 13px !important;
+        margin-top: 10px !important;
+        margin-bottom: 5px !important;
+        display: block;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -134,15 +144,14 @@ max_p = st.sidebar.number_input("最高価格 (円)", min_value=0, value=6000, s
 
 st.sidebar.subheader("実績フィルター")
 
-# ① 関連レビュー数（件数）の入力
-st.sidebar.caption("📊 関連レビュー数")
+# 🛠️ 【修正】HTMLを使い「太字の黒色」でラベルを表示
+st.sidebar.markdown('<span class="custom-sidebar-label">📊 関連レビュー数</span>', unsafe_allow_html=True)
 col1, col2 = st.sidebar.columns(2)
 with col1:
     min_rev = st.number_input("最低", min_value=0, value=0, key="min_rev")
 with col2:
     max_rev = st.number_input("最高", min_value=0, value=9999, key="max_rev")
 
-# 🛠️ 【配置変更】関連レビューの日付フィルターをここに移動
 use_date_filter = st.sidebar.checkbox("関連レビューの日付を指定する", value=False)
 if use_date_filter:
     today = datetime.now()
@@ -155,8 +164,8 @@ if use_date_filter:
 else:
     date_range = None
 
-# ③ ショップレビュー数の入力（日付の下に配置）
-st.sidebar.caption("🏪 ショップレビュー数")
+# 🛠️ 【修正】HTMLを使い「太字の黒色」でラベルを表示
+st.sidebar.markdown('<span class="custom-sidebar-label">🏪 ショップレビュー数</span>', unsafe_allow_html=True)
 col3, col4 = st.sidebar.columns(2)
 with col3:
     min_shop_rev = st.number_input("最低", min_value=0, value=0, key="min_shop_rev")

@@ -31,6 +31,8 @@ st.markdown("""
         margin-bottom: 5px !important;
         display: block;
     }
+    /* 🛠️ カレンダー入力欄の隙間をさらに詰めて見やすくする設定 */
+    div[data-testid="stDateInput"] label { display: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -150,7 +152,7 @@ with col1:
 with col2:
     max_rev = st.number_input("最高", min_value=0, value=9999, key="max_rev")
 
-# 🛠️ 【機能拡張】3つの関連レビュー日をそれぞれ指定可能に
+# 🛠️ 3つの関連レビュー日（重複タイトルラベルを空文字 "" に修正してカット）
 today = datetime.now()
 seven_days_ago = today - timedelta(days=7)
 
@@ -158,7 +160,7 @@ seven_days_ago = today - timedelta(days=7)
 use_date_filter_1 = st.sidebar.checkbox("最新の関連レビュー日を指定する", value=False)
 if use_date_filter_1:
     date_range_1 = st.sidebar.date_input(
-        "対象とする 最新の関連レビュー日（開始日 〜 終了日）",
+        "",  # 🛠️ タイトルを空にしてカット
         value=(seven_days_ago, today), max_value=today, key="dr_related_1"
     )
 else:
@@ -168,7 +170,7 @@ else:
 use_date_filter_2 = st.sidebar.checkbox("2件目の関連レビュー日を指定する", value=False)
 if use_date_filter_2:
     date_range_2 = st.sidebar.date_input(
-        "対象とする 2件目の関連レビュー日（開始日 〜 終了日）",
+        "",  # 🛠️ タイトルを空にしてカット
         value=(seven_days_ago, today), max_value=today, key="dr_related_2"
     )
 else:
@@ -178,7 +180,7 @@ else:
 use_date_filter_3 = st.sidebar.checkbox("3件目の関連レビュー日を指定する", value=False)
 if use_date_filter_3:
     date_range_3 = st.sidebar.date_input(
-        "対象とする 3件目の関連レビュー日（開始日 〜 終了日）",
+        "",  # 🛠️ タイトルを空にしてカット
         value=(seven_days_ago, today), max_value=today, key="dr_related_3"
     )
 else:
@@ -198,7 +200,7 @@ use_shop_date_filter = st.sidebar.checkbox("最初のショップレビュー日
 if use_shop_date_filter:
     ten_years_ago = today - timedelta(days=3652)
     shop_date_range = st.sidebar.date_input(
-        "対象とする最初のショップレビュー日（開始日 〜 終了日）",
+        "",  # 🛠️ タイトルを空にしてカット
         value=(ten_years_ago, today), max_value=today, key="date_range_shop"
     )
 else:
@@ -208,7 +210,6 @@ else:
 # --- 🚀 実行ボタン ---
 if st.sidebar.button("リサーチを開始する", type="primary", use_container_width=True):
     # 各日付フィルターのエラーチェックとタイムスタンプ化
-    # 最新（1件目）
     if use_date_filter_1:
         if date_range_1 and len(date_range_1) == 2:
             start_dt_1 = datetime.combine(date_range_1[0], datetime.min.time())
@@ -217,7 +218,6 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
             st.error("❌ 「最新の関連レビュー日」の開始日と終了日を選択してください。")
             st.stop()
             
-    # 2件目
     if use_date_filter_2:
         if date_range_2 and len(date_range_2) == 2:
             start_dt_2 = datetime.combine(date_range_2[0], datetime.min.time())
@@ -226,7 +226,6 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
             st.error("❌ 「2件目の関連レビュー日」の開始日と終了日を選択してください。")
             st.stop()
             
-    # 3件目
     if use_date_filter_3:
         if date_range_3 and len(date_range_3) == 2:
             start_dt_3 = datetime.combine(date_range_3[0], datetime.min.time())
@@ -235,11 +234,10 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
             st.error("❌ 「3件目の関連レビュー日」の開始日と終了日を選択してください。")
             st.stop()
 
-    # 最初のショップレビュー日
     if use_shop_date_filter:
         if shop_date_range and len(shop_date_range) == 2:
-            shop_start_dt = datetime.combine(shop_start_date, datetime.min.time()) if 'shop_start_date' in locals() else datetime.combine(shop_date_range[0], datetime.min.time())
-            shop_end_dt = datetime.combine(shop_end_date, datetime.max.time()) if 'shop_end_date' in locals() else datetime.combine(shop_date_range[1], datetime.max.time())
+            shop_start_dt = datetime.combine(shop_date_range[0], datetime.min.time())
+            shop_end_dt = datetime.combine(shop_date_range[1], datetime.max.time())
         else:
             st.error("❌ 最初のショップレビュー日の開始日と終了日を選択してください。")
             st.stop()
@@ -332,20 +330,17 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
             try: return pd.to_datetime(date_str.replace('年', '/').replace('月', '/').replace('日', '').strip(), format='%Y/%m/%d')
             except: return pd.NaT
             
-        # 全ての日付を内部的に変換
         df_filter['最新の関連レビュー日_日付'] = df_filter['最新の関連レビュー日'].apply(clean_japanese_date)
         df_filter['2件目の関連レビュー日_日付'] = df_filter['2件目の関連レビュー日'].apply(clean_japanese_date)
         df_filter['3件目の関連レビュー日_日付'] = df_filter['3件目の関連レビュー日'].apply(clean_japanese_date)
         df_filter['最初のショップレビュー日_日付'] = df_filter['最初のショップレビュー日'].apply(clean_japanese_date)
         
-        # 共通条件
         query_condition = (
             (df_filter['価格_数値'] >= min_p) & (df_filter['価格_数値'] <= max_p) &
             (df_filter['関連レビュー_数値'] >= min_rev) & (df_filter['関連レビュー_数値'] <= max_rev) &
             (df_filter['ショップレビュー_数値'] >= min_shop_rev) & (df_filter['ショップレビュー_数値'] <= max_shop_rev)
         )
         
-        # 🛠️ 3つの日付フィルターをそれぞれ適用（チェック時のみ、かつ該当数がその件数以上ある場合）
         if use_date_filter_1:
             query_condition = query_condition & (df_filter['関連レビュー_数値'] >= 1) & (df_filter['最新の関連レビュー日_日付'] >= start_dt_1) & (df_filter['最新の関連レビュー日_日付'] <= end_dt_1)
             

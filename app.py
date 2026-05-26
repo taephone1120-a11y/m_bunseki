@@ -22,7 +22,7 @@ st.markdown("""
     .stTextInput input, .stNumberInput input, .stDateInput input { padding: 6px 10px !important; font-size: 13px !important; }
     .stMarkdown p { margin-bottom: 2px !important; }
     
-    /* 🛠️ サイドバーの独自テキストを黒くするための設定 */
+    /* サイドバーの独自テキストを黒くするための設定 */
     .custom-sidebar-label {
         color: #111111 !important;
         font-weight: 600 !important;
@@ -88,8 +88,8 @@ def get_minne_perfect_details(product_url):
                 if i < len(review_dates): date_list.append(review_dates[i].text.strip())
                 else: date_list.append("なし")
         
-        # 🛰️ 空振り防止リカバリー機能（最大10ページ遡る）
-        oldest_shop_review_date = "なし"
+        # 🛰️ 空振り防止リカバリー機能（最大10ページ遡る）➔ 「最初のショップレビュー日」を取得
+        first_shop_review_date = "なし"
         if shop_review_num > 0 and shop_tag and shop_tag.get("href"):
             try:
                 raw_path = shop_tag.get("href").split('?')[0].strip('/')
@@ -101,7 +101,7 @@ def get_minne_perfect_details(product_url):
                 # レビュー削除による空振りに備え、最大10ページ分手前に遡るループ
                 for retry_offset in range(10):
                     target_page = calculated_last_page - retry_offset
-                    if target_page <= 0: break  # 1ページ目より前には戻らない
+                    if target_page <= 0: break
                     
                     reviews_url = f"https://minne.com/{shop_id}/reviews?page={target_page}"
                     
@@ -110,15 +110,15 @@ def get_minne_perfect_details(product_url):
                     if rev_res.status_code == 200:
                         found_dates = re.findall(r'\d{4}/\d{2}/\d{2}', rev_res.text)
                         if found_dates:
-                            oldest_shop_review_date = min(found_dates)
-                            break  # 日付が見つかったら即座にループを抜ける
+                            first_shop_review_date = min(found_dates)
+                            break
                         else:
-                            oldest_shop_review_date = "レビュー日なし"
+                            first_shop_review_date = "レビュー日なし"
                     else:
-                        oldest_shop_review_date = f"エラー({rev_res.status_code})"
+                        first_shop_review_date = f"エラー({rev_res.status_code})"
                         continue
             except:
-                oldest_shop_review_date = "解析失敗"
+                first_shop_review_date = "解析失敗"
         
         return {
             "ショップ名": shop_name, 
@@ -126,7 +126,7 @@ def get_minne_perfect_details(product_url):
             "ハッシュタグ": hashtag_str, 
             "関連レビュー数": related_count, 
             "ショップレビュー数": shop_review_count, 
-            "最古ショップレビュー日": oldest_shop_review_date, 
+            "最初のショップレビュー日": first_shop_review_date, 
             "レビュー日1": date_list[0], 
             "レビュー日2": date_list[1], 
             "レビュー日3": date_list[2]
@@ -144,7 +144,7 @@ max_p = st.sidebar.number_input("最高価格 (円)", min_value=0, value=6000, s
 
 st.sidebar.subheader("実績フィルター")
 
-# 🛠️ 【修正】HTMLを使い「太字の黒色」でラベルを表示
+# ① 関連レビュー数（件数）の入力
 st.sidebar.markdown('<span class="custom-sidebar-label">📊 関連レビュー数</span>', unsafe_allow_html=True)
 col1, col2 = st.sidebar.columns(2)
 with col1:
@@ -152,6 +152,7 @@ with col1:
 with col2:
     max_rev = st.number_input("最高", min_value=0, value=9999, key="max_rev")
 
+# ② 関連レビューの日付フィルター
 use_date_filter = st.sidebar.checkbox("関連レビューの日付を指定する", value=False)
 if use_date_filter:
     today = datetime.now()
@@ -159,12 +160,13 @@ if use_date_filter:
     date_range = st.sidebar.date_input(
         "対象とする関連レビューの日付（開始日 〜 終了日）",
         value=(seven_days_ago, today),
-        max_value=today
+        max_value=today,
+        key="date_range_related"
     )
 else:
     date_range = None
 
-# 🛠️ 【修正】HTMLを使い「太字の黒色」でラベルを表示
+# ③ ショップレビュー数の入力
 st.sidebar.markdown('<span class="custom-sidebar-label">🏪 ショップレビュー数</span>', unsafe_allow_html=True)
 col3, col4 = st.sidebar.columns(2)
 with col3:
@@ -172,16 +174,41 @@ with col3:
 with col4:
     max_shop_rev = st.number_input("最高", min_value=0, value=99999, key="max_shop_rev")
 
+# 🛠️ 【新機能】最初のショップレビュー日の日付フィルターを追加
+use_shop_date_filter = st.sidebar.checkbox("最初のショップレビュー日を指定する", value=False)
+if use_shop_date_filter:
+    today = datetime.now()
+    ten_years_ago = today - timedelta(days=3652)  # 約10年前
+    shop_date_range = st.sidebar.date_input(
+        "対象とする最初のショップレビュー日（開始日 〜 終了日）",
+        value=(ten_years_ago, today),
+        max_value=today,
+        key="date_range_shop"
+    )
+else:
+    shop_date_range = None
+
 
 # --- 🚀 実行ボタン ---
 if st.sidebar.button("リサーチを開始する", type="primary", use_container_width=True):
+    # 関連レビュー日付のエラーチェック
     if use_date_filter:
         if date_range and len(date_range) == 2:
             start_date, end_date = date_range
             start_dt = datetime.combine(start_date, datetime.min.time())
             end_dt = datetime.combine(end_date, datetime.max.time())
         else:
-            st.error("❌ 期間は「開始日」と「終了日」の両方を選択してください。")
+            st.error("❌ 関連レビューの期間は「開始日」と「終了日」の両方を選択してください。")
+            st.stop()
+
+    # 最初のショップレビュー日日付のエラーチェック
+    if use_shop_date_filter:
+        if shop_date_range and len(shop_date_range) == 2:
+            shop_start_date, shop_end_date = shop_date_range
+            shop_start_dt = datetime.combine(shop_start_date, datetime.min.time())
+            shop_end_dt = datetime.combine(shop_end_date, datetime.max.time())
+        else:
+            st.error("❌ 最初のショップレビュー日の期間は「開始日」と「終了日」の両方を選択してください。")
             st.stop()
 
     headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
@@ -253,7 +280,7 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
                     "URL": url, "関連レビュー数": details.get("関連レビュー数", "0件"),
                     "関連レビュー日1": details.get("レビュー日1", "なし"), "関連レビュー日2": details.get("レビュー日2", "なし"), "関連レビュー日3": details.get("レビュー日3", "なし"),
                     "ショップレビュー数": details.get("ショップレビュー数", "0件"), 
-                    "最古ショップレビュー日": details.get("最古ショップレビュー日", "なし"), 
+                    "最初のショップレビュー日": details.get("最初のショップレビュー日", "なし"), 
                     "ハッシュタグ": details.get("ハッシュタグ", "なし")
                 }
                 completed_count += 1
@@ -269,28 +296,31 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
         df_filter['ショップレビュー_数値'] = pd.to_numeric(df_filter['ショップレビュー数'].str.replace('件', '').str.strip(), errors='coerce').fillna(0).astype(int)
         
         def clean_japanese_date(date_str):
-            if not date_str or pd.isna(date_str) or date_str in ['なし', 'レビューなし']: return pd.NaT
+            if not date_str or pd.isna(date_str) or date_str in ['なし', 'レビューなし', '解析失敗', 'レビュー日なし']: return pd.NaT
             try: return pd.to_datetime(date_str.replace('年', '/').replace('月', '/').replace('日', '').strip(), format='%Y/%m/%d')
             except: return pd.NaT
             
         df_filter['関連レビュー日1_日付'] = df_filter['関連レビュー日1'].apply(clean_japanese_date)
+        df_filter['最初のショップレビュー日_日付'] = df_filter['最初のショップレビュー日'].apply(clean_japanese_date)
         
+        # 共通のベースフィルター
+        query_condition = (
+            (df_filter['価格_数値'] >= min_p) & (df_filter['価格_数値'] <= max_p) &
+            (df_filter['関連レビュー_数値'] >= min_rev) & (df_filter['関連レビュー_数値'] <= max_rev) &
+            (df_filter['ショップレビュー_数値'] >= min_shop_rev) & (df_filter['ショップレビュー_数値'] <= max_shop_rev)
+        )
+        
+        # ① 関連レビュー日フィルターの適用
         if use_date_filter:
-            df_result = df_filter[
-                (df_filter['価格_数値'] >= min_p) & (df_filter['価格_数値'] <= max_p) &
-                (df_filter['関連レビュー_数値'] >= min_rev) & (df_filter['関連レビュー_数値'] <= max_rev) &
-                (df_filter['関連レビュー_数値'] > 0) &
-                (df_filter['ショップレビュー_数値'] >= min_shop_rev) & (df_filter['ショップレビュー_数値'] <= max_shop_rev) &
-                (df_filter['関連レビュー日1_日付'] >= start_dt) & (df_filter['関連レビュー日1_日付'] <= end_dt)
-            ]
-        else:
-            df_result = df_filter[
-                (df_filter['価格_数値'] >= min_p) & (df_filter['価格_数値'] <= max_p) &
-                (df_filter['関連レビュー_数値'] >= min_rev) & (df_filter['関連レビュー_数値'] <= max_rev) &
-                (df_filter['ショップレビュー_数値'] >= min_shop_rev) & (df_filter['ショップレビュー_数値'] <= max_shop_rev)
-            ]
+            query_condition = query_condition & (df_filter['関連レビュー_数値'] > 0) & (df_filter['関連レビュー日1_日付'] >= start_dt) & (df_filter['関連レビュー日1_日付'] <= end_dt)
+            
+        # ② 最初のショップレビュー日フィルターの適用
+        if use_shop_date_filter:
+            query_condition = query_condition & (df_filter['ショップレビュー_数値'] > 0) & (df_filter['最初のショップレビュー日_日付'] >= shop_start_dt) & (df_filter['最初のショップレビュー日_日付'] <= shop_end_dt)
+            
+        df_result = df_filter[query_condition]
         
-        display_cols = ["ショップ名", "商品名", "価格", "URL", "関連レビュー数", "関連レビュー日1", "関連レビュー日2", "関連レビュー日3", "ショップレビュー数", "最古ショップレビュー日", "ハッシュタグ"]
+        display_cols = ["ショップ名", "商品名", "価格", "URL", "関連レビュー数", "関連レビュー日1", "関連レビュー日2", "関連レビュー日3", "ショップレビュー数", "最初のショップレビュー日", "ハッシュタグ"]
         df_final = df_result[display_cols]
         
         st.success(f"🎯 解析完了！ 条件にマッチした作品が 【 {len(df_final)} 件 】 見つかりました。")
@@ -308,7 +338,7 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
                 "関連レビュー数": st.column_config.TextColumn("関連レビュー数", width=110),
                 "関連レビュー日1": st.column_config.TextColumn("関連レビュー日1", width=120),
                 "ショップレビュー数": st.column_config.TextColumn("ショップレビュー数", width=130),
-                "最古ショップレビュー日": st.column_config.TextColumn("最古ショップレビュー日", width=150), 
+                "最初のショップレビュー日": st.column_config.TextColumn("最初のショップレビュー日", width=160), 
                 "ハッシュタグ": st.column_config.TextColumn("ハッシュタグ", width=200),
             }, 
             use_container_width=True

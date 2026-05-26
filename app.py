@@ -78,7 +78,7 @@ def get_minne_perfect_details(product_url):
                 if i < len(review_dates): date_list.append(review_dates[i].text.strip())
                 else: date_list.append("なし")
         
-        # 🎯 【修正】空振り防止リカバリー機能付き・最古レビュー日抽出ロジック
+        # 🎯 【修正】空振り防止リカバリー機能（最大10ページ遡る）
         oldest_shop_review_date = "なし"
         if shop_review_num > 0 and shop_tag and shop_tag.get("href"):
             try:
@@ -88,8 +88,8 @@ def get_minne_perfect_details(product_url):
                 # 計算上の最終ページ（1ページ10件）
                 calculated_last_page = math.ceil(shop_review_num / 10)
                 
-                # レビューが削除されて空振りした時のために、最大3ページ分遡るループ
-                for retry_offset in range(3):
+                # レビュー削除による空振りに備え、最大10ページ分手前に遡るループ
+                for retry_offset in range(10):
                     target_page = calculated_last_page - retry_offset
                     if target_page <= 0: break  # 1ページ目より前には戻らない
                     
@@ -101,13 +101,13 @@ def get_minne_perfect_details(product_url):
                         found_dates = re.findall(r'\d{4}/\d{2}/\d{2}', rev_res.text)
                         if found_dates:
                             oldest_shop_review_date = min(found_dates)
-                            break  # 💡 日付が見つかったらループを抜けて終了！
+                            break  # 💡 日付が見つかったら即座にループを抜ける
                         else:
-                            # ページは開けたが日付がない（削除による空振り）場合、次のループで1ページ戻る
+                            # ページは開けたが日付がない（削除による空振り）場合、次のループへ進む
                             oldest_shop_review_date = "レビュー日なし"
                     else:
                         oldest_shop_review_date = f"エラー({rev_res.status_code})"
-                        # 404エラーなどの場合も、ページ自体が存在しない可能性があるので1ページ戻って試す
+                        # 404エラーなどの場合も、ページ自体が存在しない可能性があるので手前に戻る
                         continue
             except:
                 oldest_shop_review_date = "解析失敗"

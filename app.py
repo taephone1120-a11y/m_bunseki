@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 import urllib.parse
 import re
+import math
 import pandas as pd
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -54,7 +55,7 @@ def get_minne_perfect_details(product_url):
         tags = [tag.text.strip() for tag in chip_tags if tag.text.strip().startswith("#")]
         hashtag_str = ", ".join(tags) if tags else "なし"
         
-        related_count, shop_review_count, related_num = "0件", "0件", 0
+        related_count, shop_review_count, related_num, shop_review_num = "0件", "0件", 0, 0
         sidebar = soup.find(class_=lambda x: x and (x.startswith("ProductSinglePage-sidebar-shop-wrapper__") or x.startswith("ProductSinglePage_sidebar-shop-wrapper__")))
         if sidebar:
             sidebar_text = sidebar.text.strip()
@@ -64,8 +65,10 @@ def get_minne_perfect_details(product_url):
                 related_num = int(related_match.group(1))
                 related_count = f"{related_num}件"
             if shop_match:
-                shop_review_count = f"{shop_match.group(1)}件"
+                shop_review_num = int(shop_match.group(1))
+                shop_review_count = f"{shop_review_num}件"
 
+        # 関連レビュー直近3件の取得
         date_list = []
         if related_num == 0:
             date_list = ["なし", "なし", "なし"]
@@ -75,7 +78,37 @@ def get_minne_perfect_details(product_url):
                 if i < len(review_dates): date_list.append(review_dates[i].text.strip())
                 else: date_list.append("なし")
         
-        return {"ショップ名": shop_name, "価格": price, "ハッシュタグ": hashtag_str, "関連レビュー数": related_count, "ショップレビュー数": shop_review_count, "レビュー日1": date_list[0], "レビュー日2": date_list[1], "レビュー日3": date_list[2]}
+        # 💡 提案ロジック：ショップレビュー総数から最終ページを逆算し、最古のレビュー日を取得
+        oldest_shop_review_date = "なし"
+        if shop_review_num > 0 and shop_tag and shop_tag.get("href"):
+            try:
+                # 1ページ10件計算で最終ページ番号を算出（切り上げ）
+                last_page = math.ceil(shop_review_num / 10)
+                shop_id = shop_tag.get("href").split('?')[0].strip('/')
+                reviews_url = f"https://minne.com/{shop_id}/reviews?page={last_page}"
+                
+                time.sleep(0.1) # サーバー負荷低減のための微小なウェイト
+                rev_res = requests.get(reviews_url, headers=headers, timeout=10)
+                if rev_res.status_code == 200:
+                    rev_soup = BeautifulSoup(rev_res.text, "html.parser")
+                    # 最終ページに並んでいるレビュー日のうち、一番最後（＝最古）の要素を取得
+                    all_rev_dates = rev_soup.find_all(class_=lambda x: x and x.startswith("MinneReviewCard_reviewDate__"))
+                    if all_rev_dates:
+                        oldest_shop_review_date = all_rev_dates[-1].text.strip()
+            except:
+                oldest_shop_review_date = "取得失敗"
+        
+        return {
+            "ショップ名": shop_name, 
+            "価格": price, 
+            "ハッシュタグ": hashtag_str, 
+            "関連レビュー数": related_count, 
+            "ショップレビュー数": shop_review_count, 
+            "最古ショップレビュー日": oldest_shop_review_date, # 👈 追加
+            "レビュー日1": date_list[0], 
+            "レビュー日2": date_list[1], 
+            "レビュー日3": date_list[2]
+        }
     except: return {}
 
 # --- 🛰️ 画面（サイドバー）の設定 ➔ 入力フォームを作る ---
@@ -196,7 +229,9 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
                     "ショップ名": details.get("ショップ名", "取得失敗"), "商品名": display_title, "価格": details.get("価格", "価格なし"),
                     "URL": url, "関連レビュー数": details.get("関連レビュー数", "0件"),
                     "関連レビュー日1": details.get("レビュー日1", "なし"), "関連レビュー日2": details.get("レビュー日2", "なし"), "関連レビュー日3": details.get("レビュー日3", "なし"),
-                    "ショップレビュー数": details.get("ショップレビュー数", "0件"), "ハッシュタグ": details.get("ハッシュタグ", "なし")
+                    "ショップレビュー数": details.get("ショップレビュー数", "0件"), 
+                    "最古ショップレビュー日": details.get("最古ショップレビュー日", "なし"), # 👈 追加
+                    "ハッシュタグ": details.get("ハッシュタグ", "なし")
                 }
                 completed_count += 1
                 progress_bar.progress(completed_count / total_to_scrape)
@@ -232,7 +267,8 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
                 (df_filter['ショップレビュー_数値'] >= min_shop_rev) & (df_filter['ショップレビュー_数値'] <= max_shop_rev)
             ]
         
-        display_cols = ["ショップ名", "商品名", "価格", "URL", "関連レビュー数", "関連レビュー日1", "関連レビュー日2", "関連レビュー日3", "ショップレビュー数", "ハッシュタグ"]
+        # 📋 「最古ショップレビュー日」を表示列に追加
+        display_cols = ["ショップ名", "商品名", "価格", "URL", "関連レビュー数", "関連レビュー日1", "関連レビュー日2", "関連レビュー日3", "ショップレビュー数", "最古ショップレビュー日", "ハッシュタグ"]
         df_final = df_result[display_cols]
         
         st.success(f"🎯 解析完了！ 条件にマッチした作品が 【 {len(df_final)} 件 】 見つかりました。")
@@ -240,17 +276,18 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
         csv = df_final.to_csv(index=False).encode('utf-8-sig')
         st.download_button(label="📥 データをCSV形式でダウンロード", data=csv, file_name=f"minne_research_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
         
-        # 📊 商品名とURLの幅をスッキリ狭くした元の安全な表設定
+        # 📊 商品名とURLの幅を保ちつつ、最古レビュー日をきれいに配置
         st.dataframe(
             df_final, 
             column_config={
-                "商品名": st.column_config.TextColumn("商品名", width=200),  # ほどよい幅に固定
-                "URL": st.column_config.LinkColumn("URL", width=100),       # 細めに固定
+                "商品名": st.column_config.TextColumn("商品名", width=200),  
+                "URL": st.column_config.LinkColumn("URL", width=100),       
                 "ショップ名": st.column_config.TextColumn("ショップ名", width=130),
                 "価格": st.column_config.TextColumn("価格", width=80),
                 "関連レビュー数": st.column_config.TextColumn("関連レビュー数", width=110),
                 "関連レビュー日1": st.column_config.TextColumn("関連レビュー日1", width=120),
                 "ショップレビュー数": st.column_config.TextColumn("ショップレビュー数", width=130),
+                "最古ショップレビュー日": st.column_config.TextColumn("最古ショップレビュー日", width=150), # 👈 追加
                 "ハッシュタグ": st.column_config.TextColumn("ハッシュタグ", width=200),
             }, 
             use_container_width=True

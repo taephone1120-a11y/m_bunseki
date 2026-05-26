@@ -150,21 +150,42 @@ with col1:
 with col2:
     max_rev = st.number_input("最高", min_value=0, value=9999, key="max_rev")
 
-# ② 関連レビューの日付フィルター
-use_date_filter = st.sidebar.checkbox("関連レビューの日付を指定する", value=False)
-if use_date_filter:
-    today = datetime.now()
-    seven_days_ago = today - timedelta(days=7)
-    date_range = st.sidebar.date_input(
-        "対象とする関連レビューの日付（開始日 〜 終了日）",
-        value=(seven_days_ago, today),
-        max_value=today,
-        key="date_range_related"
+# 🛠️ 【機能拡張】3つの関連レビュー日をそれぞれ指定可能に
+today = datetime.now()
+seven_days_ago = today - timedelta(days=7)
+
+# (1) 最新の関連レビュー日
+use_date_filter_1 = st.sidebar.checkbox("最新の関連レビュー日を指定する", value=False)
+if use_date_filter_1:
+    date_range_1 = st.sidebar.date_input(
+        "対象とする 最新の関連レビュー日（開始日 〜 終了日）",
+        value=(seven_days_ago, today), max_value=today, key="dr_related_1"
     )
 else:
-    date_range = None
+    date_range_1 = None
 
-# ③ ショップレビュー数の入力
+# (2) 2件目の関連レビュー日
+use_date_filter_2 = st.sidebar.checkbox("2件目の関連レビュー日を指定する", value=False)
+if use_date_filter_2:
+    date_range_2 = st.sidebar.date_input(
+        "対象とする 2件目の関連レビュー日（開始日 〜 終了日）",
+        value=(seven_days_ago, today), max_value=today, key="dr_related_2"
+    )
+else:
+    date_range_2 = None
+
+# (3) 3件目の関連レビュー日
+use_date_filter_3 = st.sidebar.checkbox("3件目の関連レビュー日を指定する", value=False)
+if use_date_filter_3:
+    date_range_3 = st.sidebar.date_input(
+        "対象とする 3件目の関連レビュー日（開始日 〜 終了日）",
+        value=(seven_days_ago, today), max_value=today, key="dr_related_3"
+    )
+else:
+    date_range_3 = None
+
+
+# ② ショップレビュー数の入力
 st.sidebar.markdown('<span class="custom-sidebar-label">🏪 ショップレビュー数</span>', unsafe_allow_html=True)
 col3, col4 = st.sidebar.columns(2)
 with col3:
@@ -172,16 +193,13 @@ with col3:
 with col4:
     max_shop_rev = st.number_input("最高", min_value=0, value=99999, key="max_shop_rev")
 
-# ④ 最初のショップレビュー日の日付フィルター
+# ③ 最初のショップレビュー日の日付フィルター
 use_shop_date_filter = st.sidebar.checkbox("最初のショップレビュー日を指定する", value=False)
 if use_shop_date_filter:
-    today = datetime.now()
     ten_years_ago = today - timedelta(days=3652)
     shop_date_range = st.sidebar.date_input(
         "対象とする最初のショップレビュー日（開始日 〜 終了日）",
-        value=(ten_years_ago, today),
-        max_value=today,
-        key="date_range_shop"
+        value=(ten_years_ago, today), max_value=today, key="date_range_shop"
     )
 else:
     shop_date_range = None
@@ -189,22 +207,41 @@ else:
 
 # --- 🚀 実行ボタン ---
 if st.sidebar.button("リサーチを開始する", type="primary", use_container_width=True):
-    if use_date_filter:
-        if date_range and len(date_range) == 2:
-            start_date, end_date = date_range
-            start_dt = datetime.combine(start_date, datetime.min.time())
-            end_dt = datetime.combine(end_date, datetime.max.time())
+    # 各日付フィルターのエラーチェックとタイムスタンプ化
+    # 最新（1件目）
+    if use_date_filter_1:
+        if date_range_1 and len(date_range_1) == 2:
+            start_dt_1 = datetime.combine(date_range_1[0], datetime.min.time())
+            end_dt_1 = datetime.combine(date_range_1[1], datetime.max.time())
         else:
-            st.error("❌ 関連レビューの期間は「開始日」と「終了日」の両方を選択してください。")
+            st.error("❌ 「最新の関連レビュー日」の開始日と終了日を選択してください。")
+            st.stop()
+            
+    # 2件目
+    if use_date_filter_2:
+        if date_range_2 and len(date_range_2) == 2:
+            start_dt_2 = datetime.combine(date_range_2[0], datetime.min.time())
+            end_dt_2 = datetime.combine(date_range_2[1], datetime.max.time())
+        else:
+            st.error("❌ 「2件目の関連レビュー日」の開始日と終了日を選択してください。")
+            st.stop()
+            
+    # 3件目
+    if use_date_filter_3:
+        if date_range_3 and len(date_range_3) == 2:
+            start_dt_3 = datetime.combine(date_range_3[0], datetime.min.time())
+            end_dt_3 = datetime.combine(date_range_3[1], datetime.max.time())
+        else:
+            st.error("❌ 「3件目の関連レビュー日」の開始日と終了日を選択してください。")
             st.stop()
 
+    # 最初のショップレビュー日
     if use_shop_date_filter:
         if shop_date_range and len(shop_date_range) == 2:
-            shop_start_date, shop_end_date = shop_date_range
-            shop_start_dt = datetime.combine(shop_start_date, datetime.min.time())
-            shop_end_dt = datetime.combine(shop_end_date, datetime.max.time())
+            shop_start_dt = datetime.combine(shop_start_date, datetime.min.time()) if 'shop_start_date' in locals() else datetime.combine(shop_date_range[0], datetime.min.time())
+            shop_end_dt = datetime.combine(shop_end_date, datetime.max.time()) if 'shop_end_date' in locals() else datetime.combine(shop_date_range[1], datetime.max.time())
         else:
-            st.error("❌ 最初のショップレビュー日の期間は「開始日」と「終了日」の両方を選択してください。")
+            st.error("❌ 最初のショップレビュー日の開始日と終了日を選択してください。")
             st.stop()
 
     headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
@@ -220,7 +257,6 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
     product_urls_with_titles = []
     page = 1
     seen_urls = set()
-    
     status_text = st.empty()
     
     while len(product_urls_with_titles) < limit:
@@ -271,7 +307,6 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
                 except: details = {}
                 
                 display_title = "作品（詳細はURLへ）" if title == "商品名（個別解析で取得）" and "ショップ名" in details else title
-                # 🛠️ 辞書のキー名（データ内部の項目名）を新名称にマッピング
                 raw_results[idx] = {
                     "ショップ名": details.get("ショップ名", "取得失敗"), "商品名": display_title, "価格": details.get("価格", "価格なし"),
                     "URL": url, "関連レビュー数": details.get("関連レビュー数", "0件"),
@@ -297,25 +332,34 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
             try: return pd.to_datetime(date_str.replace('年', '/').replace('月', '/').replace('日', '').strip(), format='%Y/%m/%d')
             except: return pd.NaT
             
-        # 🛠️ 日付フィルター用変数も新名称に合わせて変更
+        # 全ての日付を内部的に変換
         df_filter['最新の関連レビュー日_日付'] = df_filter['最新の関連レビュー日'].apply(clean_japanese_date)
+        df_filter['2件目の関連レビュー日_日付'] = df_filter['2件目の関連レビュー日'].apply(clean_japanese_date)
+        df_filter['3件目の関連レビュー日_日付'] = df_filter['3件目の関連レビュー日'].apply(clean_japanese_date)
         df_filter['最初のショップレビュー日_日付'] = df_filter['最初のショップレビュー日'].apply(clean_japanese_date)
         
+        # 共通条件
         query_condition = (
             (df_filter['価格_数値'] >= min_p) & (df_filter['価格_数値'] <= max_p) &
             (df_filter['関連レビュー_数値'] >= min_rev) & (df_filter['関連レビュー_数値'] <= max_rev) &
             (df_filter['ショップレビュー_数値'] >= min_shop_rev) & (df_filter['ショップレビュー_数値'] <= max_shop_rev)
         )
         
-        if use_date_filter:
-            query_condition = query_condition & (df_filter['関連レビュー_数値'] > 0) & (df_filter['最新の関連レビュー日_日付'] >= start_dt) & (df_filter['最新の関連レビュー日_日付'] <= end_dt)
+        # 🛠️ 3つの日付フィルターをそれぞれ適用（チェック時のみ、かつ該当数がその件数以上ある場合）
+        if use_date_filter_1:
+            query_condition = query_condition & (df_filter['関連レビュー_数値'] >= 1) & (df_filter['最新の関連レビュー日_日付'] >= start_dt_1) & (df_filter['最新の関連レビュー日_日付'] <= end_dt_1)
+            
+        if use_date_filter_2:
+            query_condition = query_condition & (df_filter['関連レビュー_数値'] >= 2) & (df_filter['2件目の関連レビュー日_日付'] >= start_dt_2) & (df_filter['2件目の関連レビュー日_日付'] <= end_dt_2)
+            
+        if use_date_filter_3:
+            query_condition = query_condition & (df_filter['関連レビュー_数値'] >= 3) & (df_filter['3件目の関連レビュー日_日付'] >= start_dt_3) & (df_filter['3件目の関連レビュー日_日付'] <= end_dt_3)
             
         if use_shop_date_filter:
             query_condition = query_condition & (df_filter['ショップレビュー_数値'] > 0) & (df_filter['最初のショップレビュー日_日付'] >= shop_start_dt) & (df_filter['最初のショップレビュー日_日付'] <= shop_end_dt)
             
         df_result = df_filter[query_condition]
         
-        # 🛠️ 画面表示・CSV出力用の列名を分かりやすい表現に変更
         display_cols = ["ショップ名", "商品名", "価格", "URL", "関連レビュー数", "最新の関連レビュー日", "2件目の関連レビュー日", "3件目の関連レビュー日", "ショップレビュー数", "最初のショップレビュー日", "ハッシュタグ"]
         df_final = df_result[display_cols]
         

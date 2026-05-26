@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import urllib.parse
 import re
 import math
+import io
 import pandas as pd
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -280,7 +281,7 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
         progress_bar.empty()
         st.session_state.df_scraped_raw = pd.DataFrame(raw_results)
 
-# --- 📊 データ表示処理 ---
+# --- 📊 データ表示・後から絞り込み処理 ---
 if st.session_state.df_scraped_raw is not None:
     df_filter = st.session_state.df_scraped_raw.copy()
     
@@ -326,16 +327,93 @@ if st.session_state.df_scraped_raw is not None:
         
     df_result = df_filter[query_condition]
     display_cols = ["ショップ名", "商品名", "価格", "URL", "関連レビュー数", "最新の関連レビュー日", "2件目の関連レビュー日", "3件目の関連レビュー日", "ショップレビュー数", "最初のショップレビュー日", "ハッシュタグ"]
-    df_final = df_result[display_cols]
+    df_final = df_result[display_cols].copy()
     
     st.markdown("### 📊 解析結果のデータボックス")
     
-    # メッセージ非表示のご要望に合わせ、「🎯マッチした作品が〜」のテキスト出力をカットしました。
+    sub_col1, sub_col2, sub_col3 = st.columns([2, 1, 1])
+    with sub_col1:
+        post_keyword = st.text_input("🔍 キーワードでさらに絞り込む (ショップ名・作品名・タグ等)", value="", key="post_kw")
+    with sub_col2:
+        post_min_price = st.number_input("💸 最低価格", min_value=0, value=min_p, step=100, key="post_min_p")
+    with sub_col3:
+        post_max_price = st.number_input("💸 最高価格", min_value=0, value=max_p, step=100, key="post_max_p")
+        
+    df_final['価格_一時数値'] = pd.to_numeric(df_final['価格'].str.replace('円', '').str.replace(',', '').str.strip(), errors='coerce').fillna(0).astype(int)
+    post_condition = (df_final['価格_一時数値'] >= post_min_price) & (df_final['価格_一時数値'] <= post_max_price)
     
-    csv = df_final.to_csv(index=False).encode('utf-8-sig')
-    st.download_button(label="📥 データをCSV形式でダウンロード", data=csv, file_name=f"minne_research_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
+    if post_keyword:
+        post_condition = post_condition & (
+            df_final['ショップ名'].str.contains(post_keyword, case=False, na=False) |
+            df_final['商品名'].str.contains(post_keyword, case=False, na=False) |
+            df_final['ハッシュタグ'].str.contains(post_keyword, case=False, na=False)
+        )
+        
+    df_final = df_final[post_condition].drop(columns=['価格_一時数値'])
     
-    # 🛠️ 各列の最小幅（width）を少し広げて、タイトル横のメニュー（点点点）を操作しやすく改善
+    # 🛠️ 【新機能】自動フィルター＆上品デザイン適用済みのExcelファイルを生成する処理
+    output_excel = io.BytesIO()
+    # openpyxlエンジンを使ってExcelを書き出す
+    with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
+        df_final.to_excel(writer, index=False, sheet_name='リサーチ結果')
+        
+        # デザインとフィルターの設定ハック
+        workbook  = writer.book
+        worksheet = writer.sheets['リサーチ結果']
+        
+        # 全列自動フィルターの設定（1行目のヘッダーすべてに▼をつける）
+        max_row = len(df_final) + 1
+        max_col = len(display_cols)
+        worksheet.auto_filter.ref = f"A1:{chr(64 + max_col)}{max_row}"
+        
+        from openpyxl.styles import PatternFill, Font, Alignment
+        # 上品なミントグリーンの塗りつぶし設定
+        header_fill = PatternFill(start_color='E2EFDA', end_color='E2EFDA', fill_type='solid')
+        header_font = Font(name='Meiryo UI', size=11, bold=True, color='000000')
+        url_font = Font(name='Meiryo UI', size=11, color='0563C1', underline='single')
+        normal_font = Font(name='Meiryo UI', size=11, color='000000')
+        
+        # ヘッダー行にデザインを適用
+        for col_idx in range(1, max_col + 1):
+            cell = worksheet.cell(row=1, column=col_idx)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            
+        # データ行にフォントと自動幅調整を適用
+        for row in range(2, max_row + 1):
+            for col in range(1, max_col + 1):
+                cell = worksheet.cell(row=row, column=col)
+                # URLの列（左から4番目 / D列）だけ青文字・下線にする
+                if col == 4:
+                    cell.font = url_font
+                else:
+                    cell.font = normal_font
+                    
+        # 各列の文字の長さに応じて幅を自動で広げる
+        for col in worksheet.columns:
+            max_len = 0
+            col_letter = col[0].column_letter # A, B, C...
+            for cell in col:
+                val_str = str(cell.value or '')
+                # 全角文字が含まれることを考慮して文字数を少し盛って計算
+                cell_len = sum([(2 if ord(c) > 256 else 1) for c in val_str])
+                if cell_len > max_len:
+                    max_len = cell_len
+            # フィルターの▼ボタンに被らないよう、少し余裕(プラス6)を持たせる
+            worksheet.column_dimensions[col_letter].width = max(max_len + 6, 12)
+            
+    processed_excel = output_excel.getvalue()
+    
+    # 📥 ボタン表記を「Excel形式でダウンロード」に変更
+    st.download_button(
+        label="📥 オシャレなデザインのExcel形式でダウンロード", 
+        data=processed_excel, 
+        file_name=f"minne_research_{datetime.now().strftime('%Y%m%d')}.xlsx", 
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    
+    # テーブル表示
     st.dataframe(
         df_final, 
         column_config={

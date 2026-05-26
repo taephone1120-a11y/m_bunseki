@@ -78,25 +78,32 @@ def get_minne_perfect_details(product_url):
                 if i < len(review_dates): date_list.append(review_dates[i].text.strip())
                 else: date_list.append("なし")
         
-        # 💡 提案ロジック：ショップレビュー総数から最終ページを逆算し、最古のレビュー日を取得
+        # 🛠️ 【修正】ショップURLから確実にID（@付き含む）を抽出してレビューURLを生成するロジック
         oldest_shop_review_date = "なし"
         if shop_review_num > 0 and shop_tag and shop_tag.get("href"):
             try:
+                raw_path = shop_tag.get("href").split('?')[0].strip('/')
+                # パスが「@作家ID」や「作家ID」だけになるよう、余計な「items」などを除外してクリーンにします
+                shop_id = raw_path.split('/')[-1] 
+                
                 # 1ページ10件計算で最終ページ番号を算出（切り上げ）
                 last_page = math.ceil(shop_review_num / 10)
-                shop_id = shop_tag.get("href").split('?')[0].strip('/')
                 reviews_url = f"https://minne.com/{shop_id}/reviews?page={last_page}"
                 
-                time.sleep(0.1) # サーバー負荷低減のための微小なウェイト
+                time.sleep(0.1)
                 rev_res = requests.get(reviews_url, headers=headers, timeout=10)
                 if rev_res.status_code == 200:
                     rev_soup = BeautifulSoup(rev_res.text, "html.parser")
-                    # 最終ページに並んでいるレビュー日のうち、一番最後（＝最古）の要素を取得
                     all_rev_dates = rev_soup.find_all(class_=lambda x: x and x.startswith("MinneReviewCard_reviewDate__"))
                     if all_rev_dates:
                         oldest_shop_review_date = all_rev_dates[-1].text.strip()
-            except:
-                oldest_shop_review_date = "取得失敗"
+                    else:
+                        oldest_shop_review_date = "レビュー日なし"
+                else:
+                    # 読み込み失敗時の保険として、エラーコードを記録（デバッグ用）
+                    oldest_shop_review_date = f"エラー({rev_res.status_code})"
+            except Exception as e:
+                oldest_shop_review_date = "解析失敗"
         
         return {
             "ショップ名": shop_name, 
@@ -104,7 +111,7 @@ def get_minne_perfect_details(product_url):
             "ハッシュタグ": hashtag_str, 
             "関連レビュー数": related_count, 
             "ショップレビュー数": shop_review_count, 
-            "最古ショップレビュー日": oldest_shop_review_date, # 👈 追加
+            "最古ショップレビュー日": oldest_shop_review_date, 
             "レビュー日1": date_list[0], 
             "レビュー日2": date_list[1], 
             "レビュー日3": date_list[2]
@@ -161,7 +168,7 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
             st.error("❌ 期間は「開始日」と「終了日」の両方を選択してください。")
             st.stop()
 
-    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, integrates; OpenJS) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     
     if target_input.startswith("http://") or target_input.startswith("https://"):
         st.info("🔗 URLモードで実行中...")
@@ -230,7 +237,7 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
                     "URL": url, "関連レビュー数": details.get("関連レビュー数", "0件"),
                     "関連レビュー日1": details.get("レビュー日1", "なし"), "関連レビュー日2": details.get("レビュー日2", "なし"), "関連レビュー日3": details.get("レビュー日3", "なし"),
                     "ショップレビュー数": details.get("ショップレビュー数", "0件"), 
-                    "最古ショップレビュー日": details.get("最古ショップレビュー日", "なし"), # 👈 追加
+                    "最古ショップレビュー日": details.get("最古ショップレビュー日", "なし"), 
                     "ハッシュタグ": details.get("ハッシュタグ", "なし")
                 }
                 completed_count += 1
@@ -267,7 +274,6 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
                 (df_filter['ショップレビュー_数値'] >= min_shop_rev) & (df_filter['ショップレビュー_数値'] <= max_shop_rev)
             ]
         
-        # 📋 「最古ショップレビュー日」を表示列に追加
         display_cols = ["ショップ名", "商品名", "価格", "URL", "関連レビュー数", "関連レビュー日1", "関連レビュー日2", "関連レビュー日3", "ショップレビュー数", "最古ショップレビュー日", "ハッシュタグ"]
         df_final = df_result[display_cols]
         
@@ -276,7 +282,6 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
         csv = df_final.to_csv(index=False).encode('utf-8-sig')
         st.download_button(label="📥 データをCSV形式でダウンロード", data=csv, file_name=f"minne_research_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
         
-        # 📊 商品名とURLの幅を保ちつつ、最古レビュー日をきれいに配置
         st.dataframe(
             df_final, 
             column_config={
@@ -287,7 +292,7 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
                 "関連レビュー数": st.column_config.TextColumn("関連レビュー数", width=110),
                 "関連レビュー日1": st.column_config.TextColumn("関連レビュー日1", width=120),
                 "ショップレビュー数": st.column_config.TextColumn("ショップレビュー数", width=130),
-                "最古ショップレビュー日": st.column_config.TextColumn("最古ショップレビュー日", width=150), # 👈 追加
+                "最古ショップレビュー日": st.column_config.TextColumn("最古ショップレビュー日", width=150), 
                 "ハッシュタグ": st.column_config.TextColumn("ハッシュタグ", width=200),
             }, 
             use_container_width=True

@@ -9,27 +9,9 @@ import pandas as pd
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import streamlit as st
-import streamlit.components.v1 as components
 
 # --- ページの設定（タイトルやアイコン） ---
 st.set_page_config(page_title="minne市場リサーチツール", page_icon="🛍️", layout="wide")
-
-# 📊 【改善】Googleアナリティクス（GA4）をアプリの一番最初で最優先で読み込ませます
-ga_id = "G-PE55LPEFXT"
-ga_html = f"""
-    <script async src="https://www.googletagmanager.com/gtag/js?id={ga_id}"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){{dataLayer.push(arguments);}}
-        gtag('js', new Date());
-        gtag('config', '{ga_id}', {{
-            'page_title': 'minne市場リサーチツール',
-            'page_path': '/'
-        }});
-    </script>
-"""
-# 起動と同時にバックグラウンドで即時通信
-components.html(ga_html, height=0, width=0)
 
 # 🎨 画面をギュッと引き締めるコンパクトデザイン ＆ 文字色カスタム設定
 st.markdown("""
@@ -58,6 +40,43 @@ st.markdown("""
 st.title("🛍️ minne市場リサーチツール")
 st.caption("キーワード、またはminneの検索結果URLから売れ行きやライバル作品を爆速で一括解析します。")
 st.write("---")
+
+# 📲 【新機能】LINE公式アカウントからあなたへ通知を飛ばす関数
+def send_line_notification(search_target, limit_count):
+    # 先ほど取得した2つの鍵をここにセットしています
+    LINE_ACCESS_TOKEN = "SsJj64qF912H/fusrwNgsiMS6bgJqv5C9i5Rx1HlHAmux8AmFlC7Q9Pnx5pbQD/4LXbi2ftiFf1zalCCDcGQAcXBxfakpnkBPLZkKzn5G2gbuQc2vkcn2GbCJ2Yf1HmfEWQoo8KbqqJn4/tsoPr4TwdB04t89/1O/w1cDnyilFU="
+    LINE_USER_ID = "Ub5228833332f8fd37bbd3d9072853f2c"
+    
+    url = "https://api.line.me/v2/bot/message/push"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {LINE_ACCESS_TOKEN}"
+    }
+    
+    # LINEに届くメッセージの本文
+    message_text = (
+        f"🛍️ 【minneツール】利用通知\n\n"
+        f"今、誰かがリサーチを開始したよ！\n"
+        f"---------------------\n"
+        f"▼ 検索内容:\n{search_target}\n\n"
+        f"▼ 解析上限: {limit_count} 件"
+    )
+    
+    payload = {
+        "to": LINE_USER_ID,
+        "messages": [
+            {
+                "type": "text",
+                "text": message_text
+            }
+        ]
+    }
+    
+    try:
+        # バックグラウンドでLINEにデータを送信（エラーが起きてもアプリ自体は止めない設計）
+        requests.post(url, headers=headers, json=payload, timeout=5)
+    except:
+        pass
 
 # --- 詳細データ抽出関数 ---
 def get_minne_perfect_details(product_url):
@@ -224,6 +243,10 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
     if use_shop_date_filter and (not shop_date_range or len(shop_date_range) != 2):
         st.error("❌ 最初のショップレビュー日の開始日と終了日を選択してください。"); st.stop()
 
+    # 🚨【トリガー】ボタンが押されたので裏側でLINE通知を実行
+    search_log_text = target_input if target_input.strip() != "" else "（未入力・空欄リサーチ）"
+    send_line_notification(search_log_text, limit)
+
     headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     if target_input.startswith("http://") or target_input.startswith("https://"):
         st.info("🔗 URLモードで実行中...")
@@ -347,14 +370,12 @@ if st.session_state.df_scraped_raw is not None:
     display_cols = ["ショップ名", "商品名", "価格", "URL", "関連レビュー数", "最新の関連レビュー日", "2件目の関連レビュー日", "3件目の関連レビュー日", "ショップレビュー数", "最初のショップレビュー日", "ハッシュタグ"]
     df_final = df_result[display_cols].copy()
     
-    # --- Excel生成（フィルター付き＆コンパクト幅設計） ---
+    # --- Excel生成 ---
     output_excel = io.BytesIO()
     with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
         df_final.to_excel(writer, index=False, sheet_name='リサーチ結果')
-        
         workbook  = writer.book
         worksheet = writer.sheets['リサーチ結果']
-        
         max_row = len(df_final) + 1
         max_col = len(display_cols)
         worksheet.auto_filter.ref = f"A1:{chr(64 + max_col)}{max_row}"
@@ -374,25 +395,20 @@ if st.session_state.df_scraped_raw is not None:
         for row in range(2, max_row + 1):
             for col in range(1, max_col + 1):
                 cell = worksheet.cell(row=row, column=col)
-                if col == 4:
-                    cell.font = url_font
-                else:
-                    cell.font = normal_font
+                if col == 4: cell.font = url_font
+                else: cell.font = normal_font
                     
-        # 各列の幅をギュッと縮めてスマートに調整
         for col in worksheet.columns:
             max_len = 0
             col_letter = col[0].column_letter
             for cell in col:
                 val_str = str(cell.value or '')
                 cell_len = sum([(2 if ord(c) > 256 else 1) for c in val_str])
-                if cell_len > max_len:
-                    max_len = cell_len
+                if cell_len > max_len: max_len = cell_len
             worksheet.column_dimensions[col_letter].width = min(max(max_len + 5, 11), 32)
             
     processed_excel = output_excel.getvalue()
     
-    # 📥 ダウンロードボタン
     st.download_button(
         label="📥 Excel形式でダウンロード", 
         data=processed_excel, 
@@ -400,7 +416,6 @@ if st.session_state.df_scraped_raw is not None:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     
-    # テーブル表示
     st.dataframe(
         df_final, 
         column_config={

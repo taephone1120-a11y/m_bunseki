@@ -9,9 +9,28 @@ import pandas as pd
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import streamlit as st
+import streamlit.components.v1 as components
 
 # --- ページの設定（タイトルやアイコン） ---
 st.set_page_config(page_title="minne市場リサーチツール", page_icon="🛍️", layout="wide")
+
+# 📊 【新機能】Googleアナリティクス（GA4）の計測タグを埋め込み
+# アプリを開いたアクセス（PV）を自動でカウントします
+ga_id = "G-PE55LPEFXT"
+ga_html = f"""
+    <script async src="https://www.googletagmanager.com/gtag/js?id={ga_id}"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){{dataLayer.push(arguments);}}
+        gtag('js', new Date());
+        gtag('config', '{ga_id}', {{
+            'page_title': 'minne市場リサーチツール',
+            'page_path': '/'
+        }});
+    </script>
+"""
+# 画面には見えない1画素の隙間に計測タグを設置
+components.html(ga_html, height=0, width=0)
 
 # 🎨 画面をギュッと引き締めるコンパクトデザイン ＆ 文字色カスタム設定
 st.markdown("""
@@ -139,8 +158,6 @@ if "df_scraped_raw" not in st.session_state:
 # --- 🛰️ 画面（サイドバー）の設定 ➔ 入力フォームを作る ---
 st.sidebar.header("🔍 検索・フィルター条件")
 target_input = st.sidebar.text_input("キーワード または 検索結果URL", value="")
-
-# 🛠️ 【変更箇所】件数の上限を 200 ➔ 500 に拡大しました
 limit = st.sidebar.number_input("解析する件数上限", min_value=10, max_value=500, value=40, step=10)
 
 st.sidebar.subheader("価格帯フィルター")

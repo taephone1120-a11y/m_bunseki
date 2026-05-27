@@ -14,8 +14,7 @@ import streamlit.components.v1 as components
 # --- ページの設定（タイトルやアイコン） ---
 st.set_page_config(page_title="minne市場リサーチツール", page_icon="🛍️", layout="wide")
 
-# 📊 【新機能】Googleアナリティクス（GA4）の計測タグを埋め込み
-# アプリを開いたアクセス（PV）を自動でカウントします
+# 📊 【改善】Googleアナリティクス（GA4）をアプリの一番最初で最優先で読み込ませます
 ga_id = "G-PE55LPEFXT"
 ga_html = f"""
     <script async src="https://www.googletagmanager.com/gtag/js?id={ga_id}"></script>
@@ -29,7 +28,7 @@ ga_html = f"""
         }});
     </script>
 """
-# 画面には見えない1画素の隙間に計測タグを設置
+# 起動と同時にバックグラウンドで即時通信
 components.html(ga_html, height=0, width=0)
 
 # 🎨 画面をギュッと引き締めるコンパクトデザイン ＆ 文字色カスタム設定

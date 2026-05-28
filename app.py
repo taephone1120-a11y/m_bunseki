@@ -91,13 +91,14 @@ def get_minne_perfect_details(product_url):
         tags = [tag.text.strip() for tag in chip_tags if tag.text.strip().startswith("#")]
         hashtag_str = ", ".join(tags) if tags else "なし"
         
-        # ❤️ 【修正箇所】お気に入り数の取得を確実なクラス名に変更しました
+        # ❤️ 【修正箇所】カンマ（,）を取り除いてから数字チェックを行うように変更しました
         favorite_count = "0件"
         fav_tag = soup.find(class_=lambda x: x and x.startswith("MinneProductSummary_favorite-count__"))
         if fav_tag:
             fav_text = fav_tag.text.strip()
-            if fav_text.isdigit():
-                favorite_count = f"{fav_text}件"
+            clean_fav_text = fav_text.replace(',', '')  # カンマを除去（例: 3,700 -> 3700）
+            if clean_fav_text.isdigit():
+                favorite_count = f"{clean_fav_text}件"
 
         related_count, shop_review_count, related_num, shop_review_num = "0件", "0件", 0, 0
         sidebar = soup.find(class_=lambda x: x and (x.startswith("ProductSinglePage-sidebar-shop-wrapper__") or x.startswith("ProductSinglePage_sidebar-shop-wrapper__")))

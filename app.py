@@ -91,12 +91,11 @@ def get_minne_perfect_details(product_url):
         tags = [tag.text.strip() for tag in chip_tags if tag.text.strip().startswith("#")]
         hashtag_str = ", ".join(tags) if tags else "なし"
         
-        # ❤️ 【修正箇所】カンマ（,）を取り除いてから数字チェックを行うように変更しました
         favorite_count = "0件"
         fav_tag = soup.find(class_=lambda x: x and x.startswith("MinneProductSummary_favorite-count__"))
         if fav_tag:
             fav_text = fav_tag.text.strip()
-            clean_fav_text = fav_text.replace(',', '')  # カンマを除去（例: 3,700 -> 3700）
+            clean_fav_text = fav_text.replace(',', '')
             if clean_fav_text.isdigit():
                 favorite_count = f"{clean_fav_text}件"
 
@@ -113,7 +112,6 @@ def get_minne_perfect_details(product_url):
                 shop_review_num = int(shop_match.group(1))
                 shop_review_count = f"{shop_review_num}件"
 
-        # 関連レビュー直近3件の取得
         date_list = []
         if related_num == 0:
             date_list = ["なし", "なし", "なし"]
@@ -123,7 +121,6 @@ def get_minne_perfect_details(product_url):
                 if i < len(review_dates): date_list.append(review_dates[i].text.strip())
                 else: date_list.append("なし")
         
-        # 最初のショップレビュー日を取得
         first_shop_review_date = "なし"
         if shop_review_num > 0 and shop_tag and shop_tag.get("href"):
             try:
@@ -169,84 +166,13 @@ def get_minne_perfect_details(product_url):
 if "df_scraped_raw" not in st.session_state:
     st.session_state.df_scraped_raw = None
 
-# --- 🛰️ 画面（サイドバー）の設定 ➔ 入力フォームを作る ---
-st.sidebar.header("🔍 検索・フィルター条件")
+# --- 🛰️ 画面（サイドバー）の設定 ---
+st.sidebar.header("🔍 1. データ取得元の指定")
 target_input = st.sidebar.text_input("キーワード または 検索結果URL", value="")
 limit = st.sidebar.number_input("解析する件数上限", min_value=10, max_value=500, value=40, step=10)
 
-st.sidebar.subheader("価格帯フィルター")
-min_p = st.sidebar.number_input("最低価格 (円)", min_value=0, value=1000, step=100)
-max_p = st.sidebar.number_input("最高価格 (円)", min_value=0, value=6000, step=100)
-
-st.sidebar.subheader("実績フィルター")
-
-# ❤️ お気に入り数の入力
-st.sidebar.markdown('<span class="custom-sidebar-label">❤️ お気に入り数</span>', unsafe_allow_html=True)
-col_fav1, col_fav2 = st.sidebar.columns(2)
-with col_fav1:
-    min_fav = st.number_input("最低", min_value=0, value=0, key="min_fav")
-with col_fav2:
-    max_fav = st.number_input("最高", min_value=0, value=99999, key="max_fav")
-
-# ① 関連レビュー数（件数）の入力
-st.sidebar.markdown('<span class="custom-sidebar-label">📊 関連レビュー数</span>', unsafe_allow_html=True)
-col1, col2 = st.sidebar.columns(2)
-with col1:
-    min_rev = st.number_input("最低", min_value=0, value=0, key="min_rev")
-with col2:
-    max_rev = st.number_input("最高", min_value=0, value=9999, key="max_rev")
-
-today = datetime.now()
-seven_days_ago = today - timedelta(days=7)
-
-# 最新の関連レビュー日
-use_date_filter_1 = st.sidebar.checkbox("最新の関連レビュー日を指定する", value=False)
-if use_date_filter_1:
-    date_range_1 = st.sidebar.date_input("", value=(seven_days_ago, today), max_value=today, key="dr_related_1")
-else:
-    date_range_1 = None
-
-# 2件目の関連レビュー日
-use_date_filter_2 = st.sidebar.checkbox("2件目の関連レビュー日を指定する", value=False)
-if use_date_filter_2:
-    date_range_2 = st.sidebar.date_input("", value=(seven_days_ago, today), max_value=today, key="dr_related_2")
-else:
-    date_range_2 = None
-
-# 3件目の関連レビュー日
-use_date_filter_3 = st.sidebar.checkbox("3件目の関連レビュー日を指定する", value=False)
-if use_date_filter_3:
-    date_range_3 = st.sidebar.date_input("", value=(seven_days_ago, today), max_value=today, key="dr_related_3")
-else:
-    date_range_3 = None
-
-# ② ショップレビュー数の入力
-st.sidebar.markdown('<span class="custom-sidebar-label">🏪 ショップレビュー数</span>', unsafe_allow_html=True)
-col3, col4 = st.sidebar.columns(2)
-with col3:
-    min_shop_rev = st.number_input("最低", min_value=0, value=0, key="min_shop_rev")
-with col4:
-    max_shop_rev = st.number_input("最高", min_value=0, value=99999, key="max_shop_rev")
-
-# ③ 最初のショップレビュー日の日付フィルター
-use_shop_date_filter = st.sidebar.checkbox("最初のショップレビュー日を指定する", value=False)
-if use_shop_date_filter:
-    ten_years_ago = today - timedelta(days=3652)
-    shop_date_range = st.sidebar.date_input("", value=(ten_years_ago, today), max_value=today, key="date_range_shop")
-else:
-    shop_date_range = None
-
-# --- 🚀 リサーチ開始ボタン ---
+# 🚀 リサーチ開始ボタン（このボタンはデータ取得のみを行う）
 if st.sidebar.button("リサーチを開始する", type="primary", use_container_width=True):
-    if use_date_filter_1 and (not date_range_1 or len(date_range_1) != 2):
-        st.error("❌ 「最新の関連レビュー日」の開始日と終了日を選択してください。"); st.stop()
-    if use_date_filter_2 and (not date_range_2 or len(date_range_2) != 2):
-        st.error("❌ 「2件目の関連レビュー日」の開始日と終了日を選択してください。"); st.stop()
-    if use_date_filter_3 and (not date_range_3 or len(date_range_3) != 2):
-        st.error("❌ 「3件目の関連レビュー日」の開始日と終了日を選択してください。"); st.stop()
-    if use_shop_date_filter and (not shop_date_range or len(shop_date_range) != 2):
-        st.error("❌ 最初のショップレビュー日の開始日と終了日を選択してください。"); st.stop()
-
     search_log_text = target_input if target_input.strip() != "" else "（未入力・空欄リサーチ）"
     send_line_notification(search_log_text, limit)
 
@@ -327,8 +253,52 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
         progress_bar.empty()
         st.session_state.df_scraped_raw = pd.DataFrame(raw_results)
 
-# --- 📊 データ表示処理 ---
+st.sidebar.write("---")
+st.sidebar.header("⏳ 2. 抽出結果のリアルタイム絞り込み")
+st.sidebar.caption("※データを一度取得した後は、以下の数値をいじるだけでリアルタイムに表が切り替わります。")
+
+min_p = st.sidebar.number_input("最低価格 (円)", min_value=0, value=0, step=100)
+max_p = st.sidebar.number_input("最高価格 (円)", min_value=0, value=100000, step=100)
+
+st.sidebar.markdown('<span class="custom-sidebar-label">❤️ お気に入り数</span>', unsafe_allow_html=True)
+col_fav1, col_fav2 = st.sidebar.columns(2)
+with col_fav1: min_fav = st.number_input("最低", min_value=0, value=0, key="min_fav")
+with col_fav2: max_fav = st.number_input("最高", min_value=0, value=99999, key="max_fav")
+
+st.sidebar.markdown('<span class="custom-sidebar-label">📊 関連レビュー数</span>', unsafe_allow_html=True)
+col1, col2 = st.sidebar.columns(2)
+with col1: min_rev = st.number_input("最低", min_value=0, value=0, key="min_rev")
+with col2: max_rev = st.number_input("最高", min_value=0, value=9999, key="max_rev")
+
+today = datetime.now()
+seven_days_ago = today - timedelta(days=7)
+
+use_date_filter_1 = st.sidebar.checkbox("最新の関連レビュー日を指定する", value=False)
+date_range_1 = st.sidebar.date_input("最新レビュー範囲", value=(seven_days_ago, today), max_value=today, key="dr_related_1") if use_date_filter_1 else None
+
+use_date_filter_2 = st.sidebar.checkbox("2件目の関連レビュー日を指定する", value=False)
+date_range_2 = st.sidebar.date_input("2件目レビュー範囲", value=(seven_days_ago, today), max_value=today, key="dr_related_2") if use_date_filter_2 else None
+
+use_date_filter_3 = st.sidebar.checkbox("3件目の関連レビュー日を指定する", value=False)
+date_range_3 = st.sidebar.date_input("3件目レビュー範囲", value=(seven_days_ago, today), max_value=today, key="dr_related_3") if use_date_filter_3 else None
+
+st.sidebar.markdown('<span class="custom-sidebar-label">🏪 ショップレビュー数</span>', unsafe_allow_html=True)
+col3, col4 = st.sidebar.columns(2)
+with col3: min_shop_rev = st.number_input("最低", min_value=0, value=0, key="min_shop_rev")
+with col4: max_shop_rev = st.number_input("最高", min_value=0, value=99999, key="max_shop_rev")
+
+use_shop_date_filter = st.sidebar.checkbox("最初のショップレビュー日を指定する", value=False)
+shop_date_range = st.sidebar.date_input("ショップ開始範囲", value=(today - timedelta(days=3652), today), max_value=today, key="date_range_shop") if use_shop_date_filter else None
+
+
+# --- 📊 リアルタイムデータ表示処理 ---
 if st.session_state.df_scraped_raw is not None:
+    # 万が一チェックボックスが入っているのに日付が片方しか選ばれていない場合の安全ガード
+    if use_date_filter_1 and (not date_range_1 or len(date_range_1) != 2): st.warning("⚠️ 最新の関連レビュー日の「開始日と終了日」を両方選択してください。"); st.stop()
+    if use_date_filter_2 and (not date_range_2 or len(date_range_2) != 2): st.warning("⚠️ 2件目の関連レビュー日の「開始日と終了日」を両方選択してください。"); st.stop()
+    if use_date_filter_3 and (not date_range_3 or len(date_range_3) != 2): st.warning("⚠️ 3件目の関連レビュー日の「開始日と終了日」を両方選択してください。"); st.stop()
+    if use_shop_date_filter and (not shop_date_range or len(shop_date_range) != 2): st.warning("⚠️ 最初のショップレビュー日の「開始日と終了日」を両方選択してください。"); st.stop()
+
     df_filter = st.session_state.df_scraped_raw.copy()
     
     df_filter['価格_数値'] = pd.to_numeric(df_filter['価格'].str.replace('円', '').str.replace(',', '').str.strip(), errors='coerce').fillna(0).astype(int)
@@ -361,7 +331,7 @@ if st.session_state.df_scraped_raw is not None:
     if use_date_filter_2 and date_range_2:
         start_dt_2 = datetime.combine(date_range_2[0], datetime.min.time())
         end_dt_2 = datetime.combine(date_range_2[1], datetime.max.time())
-        query_condition = query_condition & (df_filter['関連レビュー_数値'] >= 2) & (df_filter['2件目の関連レビュー日_日付'] >= start_dt_2) & (df_filter['2件目の関連レビュー日_日付'] <= end_dt_2)
+        query_condition = query_condition & (df_filter['関連レビュー_数値'] >= 2) & (df_filter['2件目の関連レビュー日_日付'] >= start_dt_2) & (df_filter['2件目の関連レビュー日_日付'] <= start_dt_2)
         
     if use_date_filter_3 and date_range_3:
         start_dt_3 = datetime.combine(date_range_3[0], datetime.min.time())
@@ -376,6 +346,9 @@ if st.session_state.df_scraped_raw is not None:
     df_result = df_filter[query_condition]
     display_cols = ["ショップ名", "商品名", "価格", "URL", "お気に入り数", "関連レビュー数", "最新の関連レビュー日", "2件目の関連レビュー日", "3件目の関連レビュー日", "ショップレビュー数", "最初のショップレビュー日", "ハッシュタグ"]
     df_final = df_result[display_cols].copy()
+    
+    # 状況表示メッセージ
+    st.success(f"✨ フィルター適用中: 全 {len(st.session_state.df_scraped_raw)} 件中 {len(df_final)} 件を表示しています。")
     
     # --- Excel生成 ---
     output_excel = io.BytesIO()
@@ -417,9 +390,9 @@ if st.session_state.df_scraped_raw is not None:
     processed_excel = output_excel.getvalue()
     
     st.download_button(
-        label="📥 Excel形式でダウンロード", 
+        label="📥 絞り込んだ結果をExcelでDL", 
         data=processed_excel, 
-        file_name=f"minne_research_{datetime.now().strftime('%Y%m%d')}.xlsx", 
+        file_name=f"minne_filtered_{datetime.now().strftime('%Y%m%d')}.xlsx", 
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     
@@ -441,3 +414,5 @@ if st.session_state.df_scraped_raw is not None:
         }, 
         use_container_width=True
     )
+else:
+    st.info("💡 左メニューの「1. データ取得元の指定」を入力し、「リサーチを開始する」ボタンを押すと解析が始まります。")

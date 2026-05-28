@@ -254,11 +254,15 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
         st.session_state.df_scraped_raw = pd.DataFrame(raw_results)
 
 st.sidebar.write("---")
-st.sidebar.header("⏳ 2. 抽出結果のリアルタイム絞り込み")
-st.sidebar.caption("※データを一度取得した後は、以下の数値をいじるだけでリアルタイムに表が切り替わります。")
+# 🛠️ タイトルを修正
+st.sidebar.header("⏳ 2. 抽出結果の絞り込み")
+st.sidebar.caption("※抽出後に各数値を変更すると、自動で表が絞り込まれます。")
 
-min_p = st.sidebar.number_input("最低価格 (円)", min_value=0, value=0, step=100)
-max_p = st.sidebar.number_input("最高価格 (円)", min_value=0, value=100000, step=100)
+# 🛠️ 価格フィルターを横並び（2列）に修正
+st.sidebar.markdown('<span class="custom-sidebar-label">💰 価格帯 (円)</span>', unsafe_allow_html=True)
+col_p1, col_p2 = st.sidebar.columns(2)
+with col_p1: min_p = st.number_input("最低", min_value=0, value=0, step=100, key="min_p")
+with col_p2: max_p = st.number_input("最高", min_value=0, value=100000, step=100, key="max_p")
 
 st.sidebar.markdown('<span class="custom-sidebar-label">❤️ お気に入り数</span>', unsafe_allow_html=True)
 col_fav1, col_fav2 = st.sidebar.columns(2)
@@ -293,7 +297,6 @@ shop_date_range = st.sidebar.date_input("ショップ開始範囲", value=(today
 
 # --- 📊 リアルタイムデータ表示処理 ---
 if st.session_state.df_scraped_raw is not None:
-    # 万が一チェックボックスが入っているのに日付が片方しか選ばれていない場合の安全ガード
     if use_date_filter_1 and (not date_range_1 or len(date_range_1) != 2): st.warning("⚠️ 最新の関連レビュー日の「開始日と終了日」を両方選択してください。"); st.stop()
     if use_date_filter_2 and (not date_range_2 or len(date_range_2) != 2): st.warning("⚠️ 2件目の関連レビュー日の「開始日と終了日」を両方選択してください。"); st.stop()
     if use_date_filter_3 and (not date_range_3 or len(date_range_3) != 2): st.warning("⚠️ 3件目の関連レビュー日の「開始日と終了日」を両方選択してください。"); st.stop()
@@ -347,7 +350,6 @@ if st.session_state.df_scraped_raw is not None:
     display_cols = ["ショップ名", "商品名", "価格", "URL", "お気に入り数", "関連レビュー数", "最新の関連レビュー日", "2件目の関連レビュー日", "3件目の関連レビュー日", "ショップレビュー数", "最初のショップレビュー日", "ハッシュタグ"]
     df_final = df_result[display_cols].copy()
     
-    # 状況表示メッセージ
     st.success(f"✨ フィルター適用中: 全 {len(st.session_state.df_scraped_raw)} 件中 {len(df_final)} 件を表示しています。")
     
     # --- Excel生成 ---

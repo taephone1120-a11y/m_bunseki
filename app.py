@@ -54,8 +54,6 @@ def send_line_notification(search_target, limit_count):
     
     message_text = (
         f"🛍️ 【minneツール】利用通知\n\n"
-        f"今、誰かがリサーチを開始したよ！\n"
-        f"---------------------\n"
         f"▼ 検索内容:\n{search_target}\n\n"
         f"▼ 解析上限: {limit_count} 件"
     )

@@ -91,9 +91,9 @@ def get_minne_perfect_details(product_url):
         tags = [tag.text.strip() for tag in chip_tags if tag.text.strip().startswith("#")]
         hashtag_str = ", ".join(tags) if tags else "なし"
         
-        # ❤️ 【新機能】お気に入り数の取得
+        # ❤️ 【修正箇所】お気に入り数の取得を確実なクラス名に変更しました
         favorite_count = "0件"
-        fav_tag = soup.find(class_=lambda x: x and x.startswith("MinneFavoriteButton_count__"))
+        fav_tag = soup.find(class_=lambda x: x and x.startswith("MinneProductSummary_favorite-count__"))
         if fav_tag:
             fav_text = fav_tag.text.strip()
             if fav_text.isdigit():
@@ -154,7 +154,7 @@ def get_minne_perfect_details(product_url):
             "ショップ名": shop_name, 
             "価格": price, 
             "ハッシュタグ": hashtag_str, 
-            "お気に入り数": favorite_count,  # 追加
+            "お気に入り数": favorite_count,
             "関連レビュー数": related_count, 
             "ショップレビュー数": shop_review_count, 
             "最初のショップレビュー日": first_shop_review_date, 
@@ -179,7 +179,7 @@ max_p = st.sidebar.number_input("最高価格 (円)", min_value=0, value=6000, s
 
 st.sidebar.subheader("実績フィルター")
 
-# ❤️ 【新機能】お気に入り数の入力
+# ❤️ お気に入り数の入力
 st.sidebar.markdown('<span class="custom-sidebar-label">❤️ お気に入り数</span>', unsafe_allow_html=True)
 col_fav1, col_fav2 = st.sidebar.columns(2)
 with col_fav1:
@@ -312,7 +312,7 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
                 raw_results[idx] = {
                     "ショップ名": details.get("ショップ名", "取得失敗"), "商品名": display_title, "価格": details.get("価格", "価格なし"),
                     "URL": url, 
-                    "お気に入り数": details.get("お気に入り数", "0件"),  # 追加
+                    "お気に入り数": details.get("お気に入り数", "0件"),
                     "関連レビュー数": details.get("関連レビュー数", "0件"),
                     "最新の関連レビュー日": details.get("レビュー日1", "なし"), "2件目の関連レビュー日": details.get("レビュー日2", "なし"), "3件目の関連レビュー日": details.get("レビュー日3", "なし"),
                     "ショップレビュー数": details.get("ショップレビュー数", "0件"), 
@@ -331,7 +331,7 @@ if st.session_state.df_scraped_raw is not None:
     df_filter = st.session_state.df_scraped_raw.copy()
     
     df_filter['価格_数値'] = pd.to_numeric(df_filter['価格'].str.replace('円', '').str.replace(',', '').str.strip(), errors='coerce').fillna(0).astype(int)
-    df_filter['お気に入り_数値'] = pd.to_numeric(df_filter['お気に入り数'].str.replace('件', '').str.strip(), errors='coerce').fillna(0).astype(int) # 追加
+    df_filter['お気に入り_数値'] = pd.to_numeric(df_filter['お気に入り数'].str.replace('件', '').str.strip(), errors='coerce').fillna(0).astype(int)
     df_filter['関連レビュー_数値'] = pd.to_numeric(df_filter['関連レビュー数'].str.replace('件', '').str.strip(), errors='coerce').fillna(0).astype(int)
     df_filter['ショップレビュー_数値'] = pd.to_numeric(df_filter['ショップレビュー数'].str.replace('件', '').str.strip(), errors='coerce').fillna(0).astype(int)
     
@@ -345,10 +345,9 @@ if st.session_state.df_scraped_raw is not None:
     df_filter['3件目の関連レビュー日_日付'] = df_filter['3件目の関連レビュー日'].apply(clean_japanese_date)
     df_filter['最初のショップレビュー日_日付'] = df_filter['最初のショップレビュー日'].apply(clean_japanese_date)
     
-    # フィルター条件の統合
     query_condition = (
         (df_filter['価格_数値'] >= min_p) & (df_filter['価格_数値'] <= max_p) &
-        (df_filter['お気に入り_数値'] >= min_fav) & (df_filter['お気に入り_数値'] <= max_fav) & # 追加
+        (df_filter['お気に入り_数値'] >= min_fav) & (df_filter['お気に入り_数値'] <= max_fav) &
         (df_filter['関連レビュー_数値'] >= min_rev) & (df_filter['関連レビュー_数値'] <= max_rev) &
         (df_filter['ショップレビュー_数値'] >= min_shop_rev) & (df_filter['ショップレビュー_数値'] <= max_shop_rev)
     )
@@ -374,8 +373,6 @@ if st.session_state.df_scraped_raw is not None:
         query_condition = query_condition & (df_filter['ショップレビュー_数値'] > 0) & (df_filter['最初のショップレビュー日_日付'] >= shop_start_dt) & (df_filter['最初のショップレビュー日_日付'] <= shop_end_dt)
         
     df_result = df_filter[query_condition]
-    
-    # 列順にお気に入り数を追加
     display_cols = ["ショップ名", "商品名", "価格", "URL", "お気に入り数", "関連レビュー数", "最新の関連レビュー日", "2件目の関連レビュー日", "3件目の関連レビュー日", "ショップレビュー数", "最初のショップレビュー日", "ハッシュタグ"]
     df_final = df_result[display_cols].copy()
     
@@ -432,7 +429,7 @@ if st.session_state.df_scraped_raw is not None:
             "URL": st.column_config.LinkColumn("URL", width=120),       
             "ショップ名": st.column_config.TextColumn("ショップ名", width=160),
             "価格": st.column_config.TextColumn("価格", width=110),
-            "お気に入り数": st.column_config.TextColumn("お気に入り数", width=120), # 追加
+            "お気に入り数": st.column_config.TextColumn("お気に入り数", width=120),
             "関連レビュー数": st.column_config.TextColumn("関連レビュー数", width=130),
             "最新の関連レビュー日": st.column_config.TextColumn("最新の関連レビュー日", width=150),
             "2件目の関連レビュー日": st.column_config.TextColumn("2件目の関連レビュー日", width=150),

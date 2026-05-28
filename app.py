@@ -254,11 +254,9 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
         st.session_state.df_scraped_raw = pd.DataFrame(raw_results)
 
 st.sidebar.write("---")
-# 🛠️ タイトルを修正
 st.sidebar.header("⏳ 2. 抽出結果の絞り込み")
 st.sidebar.caption("※抽出後に各数値を変更すると、自動で表が絞り込まれます。")
 
-# 🛠️ 価格フィルターを横並び（2列）に修正
 st.sidebar.markdown('<span class="custom-sidebar-label">💰 価格帯 (円)</span>', unsafe_allow_html=True)
 col_p1, col_p2 = st.sidebar.columns(2)
 with col_p1: min_p = st.number_input("最低", min_value=0, value=0, step=100, key="min_p")
@@ -349,6 +347,9 @@ if st.session_state.df_scraped_raw is not None:
     df_result = df_filter[query_condition]
     display_cols = ["ショップ名", "商品名", "価格", "URL", "お気に入り数", "関連レビュー数", "最新の関連レビュー日", "2件目の関連レビュー日", "3件目の関連レビュー日", "ショップレビュー数", "最初のショップレビュー日", "ハッシュタグ"]
     df_final = df_result[display_cols].copy()
+    
+    # 🛠️ 【修正箇所】画面に表示するデータフレームの行番号（インデックス）を 1 スタートにする
+    df_final.index = range(1, len(df_final) + 1)
     
     st.success(f"✨ フィルター適用中: 全 {len(st.session_state.df_scraped_raw)} 件中 {len(df_final)} 件を表示しています。")
     

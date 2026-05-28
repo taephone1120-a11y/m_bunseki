@@ -169,7 +169,7 @@ if "df_scraped_raw" not in st.session_state:
 # --- 🛰️ 画面（サイドバー）の設定 ---
 st.sidebar.header("🔍 1. データ取得元の指定")
 target_input = st.sidebar.text_input("キーワード または 検索結果URL", value="")
-limit = st.sidebar.number_input("解析する件数上限", min_value=10, max_value=500, value=40, step=10)
+limit = st.sidebar.number_input("解析する件数", min_value=10, max_value=500, value=40, step=10)
 
 # 🚀 リサーチ開始ボタン（このボタンはデータ取得のみを行う）
 if st.sidebar.button("リサーチを開始する", type="primary", use_container_width=True):

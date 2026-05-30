@@ -54,6 +54,8 @@ def send_line_notification(search_target, limit_count):
     
     message_text = (
         f"🛍️ 【minneツール】利用通知\n\n"
+        f"今、誰かがリサーチを開始したよ！\n"
+        f"---------------------\n"
         f"▼ 検索内容:\n{search_target}\n\n"
         f"▼ 解析上限: {limit_count} 件"
     )
@@ -68,7 +70,8 @@ def get_minne_perfect_details(product_url):
     max_retries = 3
     for attempt in range(1, max_retries + 1):
         try:
-            time.sleep(0.2)
+            # 大量データ取得時の負荷分散のため、リクエスト間のウェイトを調整
+            time.sleep(0.25)
             res = requests.get(product_url, headers=headers, timeout=10)
             if res.status_code != 200: continue
             soup = BeautifulSoup(res.text, "html.parser")
@@ -126,12 +129,12 @@ def get_minne_perfect_details(product_url):
                 shop_id = raw_path.split('/')[-1] 
                 calculated_last_page = math.ceil(shop_review_num / 10)
                 
-                for retry_offset in range(10):
+                for retry_offset in range(5): # 大量取得向けに遡り回数を最大5回に最適化
                     target_page = calculated_last_page - retry_offset
                     if target_page <= 0: break
                     reviews_url = f"https://minne.com/{shop_id}/reviews?page={target_page}"
                     
-                    time.sleep(0.1)
+                    time.sleep(0.15)
                     rev_res = requests.get(reviews_url, headers=headers, timeout=10)
                     if rev_res.status_code == 200:
                         found_dates = re.findall(r'\d{4}/\d{2}/\d{2}', rev_res.text)
@@ -167,9 +170,11 @@ if "df_scraped_raw" not in st.session_state:
 # --- 🛰️ 画面（サイドバー）の設定 ---
 st.sidebar.header("🔍 1. データ取得元の指定")
 target_input = st.sidebar.text_input("キーワード または 検索結果URL", value="")
-limit = st.sidebar.number_input("解析する件数", min_value=10, max_value=500, value=40, step=10)
 
-# 🚀 リサーチ開始ボタン（このボタンはデータ取得のみを行う）
+# 🛠️ 解析件数の上限を 500 件に設定
+limit = st.sidebar.number_input("解析する件数上限", min_value=10, max_value=500, value=100, step=50)
+
+# 🚀 リサーチ開始ボタン
 if st.sidebar.button("リサーチを開始する", type="primary", use_container_width=True):
     search_log_text = target_input if target_input.strip() != "" else "（未入力・空欄リサーチ）"
     send_line_notification(search_log_text, limit)
@@ -212,7 +217,7 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
                     page_added += 1
             if page_added == 0: break
             page += 1
-            time.sleep(0.3)
+            time.sleep(0.4) # 大量ページ巡回時のスロットリング回避ウェイト
         except:
             break
 
@@ -221,12 +226,13 @@ if st.sidebar.button("リサーチを開始する", type="primary", use_containe
         st.error("❌ 条件に合う商品が1件も取得できませんでした。")
         st.session_state.df_scraped_raw = None
     else:
-        status_text.text(f"📦 候補 {total_to_scrape} 件の詳細データを並行解析中...（しばらくお待ちください）")
+        status_text.text(f"📦 候補 {total_to_scrape} 件の詳細データを並行解析中...（大量件数のため最大数分かかります）")
         progress_bar = st.progress(0)
         raw_results = [None] * total_to_scrape
         completed_count = 0
         
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        # 大量リクエスト時の安定性を高めるため、max_workersを4に調整
+        with ThreadPoolExecutor(max_workers=4) as executor:
             future_to_info = {executor.submit(get_minne_perfect_details, url): (idx, title, url) for idx, (title, url) in enumerate(product_urls_with_titles[:total_to_scrape])}
             for future in as_completed(future_to_info):
                 idx, title, url = future_to_info[future]
@@ -346,7 +352,7 @@ if st.session_state.df_scraped_raw is not None:
     display_cols = ["ショップ名", "商品名", "価格", "URL", "お気に入り数", "関連レビュー数", "最新の関連レビュー日", "2件目の関連レビュー日", "3件目の関連レビュー日", "ショップレビュー数", "最初のショップレビュー日", "ハッシュタグ"]
     df_final = df_result[display_cols].copy()
     
-    # 🛠️ 【修正箇所】画面に表示するデータフレームの行番号（インデックス）を 1 スタートにする
+    # 画面に表示するデータフレームの行番号（インデックス）を 1 スタートにする
     df_final.index = range(1, len(df_final) + 1)
     
     st.success(f"✨ フィルター適用中: 全 {len(st.session_state.df_scraped_raw)} 件中 {len(df_final)} 件を表示しています。")
